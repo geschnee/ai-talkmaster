@@ -1,0 +1,40 @@
+# OllamaProxy Configuration File for Docker
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 7999
+
+# Ollama Configuration
+chat_client:
+  mode: "openai"
+  key_file: "openai_key.txt"
+  base_url: "http://host.docker.internal:11434"  # Connect to host machine's Ollama
+  valid_models: ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
+
+# OpenAI Configuration
+audio_client:
+  mode: "openai" # "openai" or "kokoro"
+  key_file: "openai_key.txt"
+  base_url: "http://host.docker.internal:8880/v1"  # Connect to host machine's Kokoro
+  default_voice: "alloy"
+  default_model: "tts-1"
+  valid_voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse"]
+  valid_models: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]
+
+liquidsoap_client:
+  host: "liquidsoap"
+  telnet_port: 1234
+
+icecast_client:
+  host: "icecast"
+  port: 8000
+  admin_password: "password"
+
+# Theater Configuration
+theater:
+  join_key_keep_alive_list: []
+
+# File Paths
+paths:
+  log_file: "./logs/logfile.txt"

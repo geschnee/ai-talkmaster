@@ -1,0 +1,241 @@
+
+
+from typing import Optional
+from pydantic import BaseModel, Field
+from datetime import datetime
+from pathlib import Path
+from mutagen.mp3 import MP3
+import time
+from dataclasses import dataclass
+import socket
+from code.shared import config, log
+
+
+
+def time_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def get_audio_duration(file_path: Path) -> float:
+    """Get the duration of an MP3 file in seconds"""
+    
+    try:
+        audio = MP3(file_path)
+        duration = audio.info.length
+        
+        return duration
+    except Exception as e:
+        log(f"Error getting audio duration for {file_path}: {e}")
+        return 0.0
+
+@dataclass
+class UserMessage:
+    """Represents a user message in the conversation"""
+    message: str
+    name: str
+    message_id: str
+    timestamp: Optional[float] = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = time.time()
+
+@dataclass
+class AssistantResponse:
+    """Represents an assistant response in the conversation"""
+    response: str
+    name: str
+    response_id: str
+    filename: str
+    timestamp: Optional[float] = None
+    audio_created_at: Optional[float] = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = time.time()
+
+class PostMessageRequest(BaseModel):
+    join_key: str
+    username: str # name of the SL user that said the message (can also be an actor)
+    message: str
+    model: str
+    system_instructions: str
+    charactername: str
+    message_id: str
+    audio_voice: Optional[str] = ""
+    options: Optional[dict] = {}
+    audio_description: Optional[str] = ""
+    audio_model: Optional[str] = ""
+
+class TheaterPlay:
+    """Simplified TheaterPlay class using message classes for better readability"""
+    
+    def __init__(self, join_key: str):
+        self.join_key = join_key
+        self.created_at = time.time()
+        self.last_listened_at = time.time()
+        
+        # Lists of message objects for better readability
+        self.user_messages: list[UserMessage] = []
+        self.assistant_responses: list[AssistantResponse] = []
+
+    def addUserMessage(self, message: str, name: str, message_id: str):
+        """Add a user message to the conversation"""
+        user_msg = UserMessage(message=message, name=name, message_id=message_id)
+        self.user_messages.append(user_msg)
+
+    def addResponse(self, response: str, name: str, response_id: str, filename: str):
+        """Add an assistant response to the conversation"""
+        assistant_resp = AssistantResponse(
+            response=response, 
+            name=name, 
+            response_id=response_id, 
+            filename=filename
+        )
+        self.assistant_responses.append(assistant_resp)
+
+    def contains_message_id(self, message_id: str) -> bool:
+        """Check if a message ID already exists in user messages"""
+        for user_msg in self.user_messages:
+            if user_msg.message_id == message_id:
+                return True
+        return False
+    
+    def getDialog(self):
+        """Get complete dialog including both user messages and assistant responses in chronological order"""
+        dialog = []
+        
+        # Combine user messages and assistant responses in chronological order
+        all_messages = []
+        
+        # Add user messages
+        for user_msg in self.user_messages:
+            all_messages.append({
+                "timestamp": user_msg.timestamp,
+                "role": "user",
+                "content": f"{user_msg.name}: {user_msg.message}",
+                "message_id": user_msg.message_id
+            })
+        
+        # Add assistant responses
+        for assistant_resp in self.assistant_responses:
+            all_messages.append({
+                "timestamp": assistant_resp.timestamp,
+                "role": "assistant", 
+                "content": f"{assistant_resp.name}: {assistant_resp.response}",
+                "response_id": assistant_resp.response_id
+            })
+        
+        # Sort by actual timestamp to maintain chronological order
+        all_messages.sort(key=lambda x: x["timestamp"])
+        
+        # Return only the role and content for chat model compatibility
+        for msg in all_messages:
+            dialog.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+        
+        return dialog
+
+    def get_responses(self):
+        """Get assistant responses for backward compatibility"""
+        responses = []
+        for assistant_resp in self.assistant_responses:
+            response_dict: dict = {
+                "role": "assistant",
+                "content": assistant_resp.response,
+                "name": assistant_resp.name,
+                "response_id": assistant_resp.response_id,
+                "filename": assistant_resp.filename
+            }
+            if assistant_resp.audio_created_at is not None:
+                response_dict["audio_created_at"] = assistant_resp.audio_created_at
+            responses.append(response_dict)
+        return responses
+
+    def set_audio_created_at(self, response_id: str, timestamp: float):
+        """Set the audio creation timestamp for a specific response"""
+        for assistant_resp in self.assistant_responses:
+            if assistant_resp.response_id == response_id:
+                assistant_resp.audio_created_at = timestamp
+                break
+
+    def __str__(self):
+        return str(self.getDialog())
+
+def remove_name(message: str, charactername: str):
+
+    if message.lower().startswith(f"{charactername.lower()}: "):
+        message = message[len(charactername)+2:]
+
+    return message
+
+class MessageResponseRequest(BaseModel):
+    join_key: str
+    message_id: str
+
+class ResetTheaterRequest(BaseModel):
+    join_key: str
+
+
+class ChatResponse(BaseModel):
+    text_response: str = Field(description="character response")
+
+
+def send_telnet_command(command: str) -> bool:
+
+
+    if config.liquidsoap_client == None:
+        log(f"[-] No liquidsoap client config found, canceling telnet command '{command}'")
+        return False
+
+
+    """Send a telnet command to the liquidsoap server"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(5)  # 5 second timeout
+            sock.connect((config.liquidsoap_client.host, config.liquidsoap_client.telnet_port))
+            
+            # Send the command with newline
+            sock.send(f"{command}\n".encode('utf-8'))
+            
+            # Read response (optional, but good for debugging)
+            response = sock.recv(1024).decode('utf-8', errors='ignore')
+            log(f"[*] Telnet command '{command}' sent, response: {response.strip()}")
+            return True
+            
+    except socket.timeout:
+        log(f"[-] Telnet command '{command}' timed out")
+        return False
+    except ConnectionRefusedError:
+        log(f"[-] Cannot connect to liquidsoap telnet server at {config.liquidsoap_client.host}:{config.liquidsoap_client.telnet_port}")
+        return False
+    except Exception as e:
+        log(f"[-] Error sending telnet command '{command}': {e}")
+        return False
+
+
+def start_liquidsoap(stream_name: str) -> bool:
+    """Start a liquidsoap stream via telnet command"""
+    
+
+    
+    
+    log(f"[+] Starting liquidsoap stream for '{stream_name}'")
+    command = f"aitstream.start {stream_name}"
+    success = send_telnet_command(command)
+    
+    return success
+        
+
+
+def stop_liquidsoap(stream_name: str) -> bool:
+    """Stop a specific liquidsoap stream via telnet command"""
+    
+    
+    log(f"[-] Stopping liquidsoap stream for '{stream_name}'")
+    command = f"aitstream.stop {stream_name}"
+    success = send_telnet_command(command)
+    
+    return success
+        

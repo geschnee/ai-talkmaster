@@ -1,0 +1,19 @@
+agentName:Oracle
+model:llama3.2
+system:You are my personal assistant. Be precise.
+
+
+// parameters from https://github.com/ollama/ollama/blob/main/docs/modelfile.md#parameter
+// do not use quotation marks for stop parameter
+// parameters can be removed by removing their line (this will use the default instead)
+
+num_ctx:4096
+repeat_last_n:64
+repeat_penalty:1.1
+temperature:0.7
+seed:42
+stop:AI assistant
+num_predict:42
+top_k:40
+top_p:0.9
+min_p:0.05

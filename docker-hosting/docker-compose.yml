@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # OllamaProxy FastAPI application
+  ollamaproxy:
+    build:
+      context: ../
+      dockerfile: docker-hosting/aitalkmaster.Dockerfile
+    container_name: ollamaproxy
+    ports:
+      - "7999:7999"
+    networks:
+      - streaming-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../volumes/generated-audio:/app/generated-audio
+      - ../volumes/ollamaproxy-logs:/app/logs
+      - ../openai_key.txt:/app/openai_key.txt:ro
+      - ../aitalkmaster-server/configs/config.docker.yml:/app/config.yml:ro
+      - ../app_password.txt:/app/app_password.txt:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7999/statusOllamaProxy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  liquidsoap:
+    build:
+      context: ../
+      dockerfile: docker-hosting/liquidsoap.Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ../volumes/liquidsoap-logs:/var/log/liquidsoap
+      - ../volumes/generated-audio:/generated-audio:ro
+    environment:
+      - LIQUIDSOAP_LOG_LEVEL=3
+    depends_on:
+      - icecast
+    networks:
+      - streaming-network
+
+    # icecast configs lie in /etc/icecast2/icecast.xml
+  icecast:
+    image: moul/icecast:latest
+    restart: unless-stopped
+    ports:
+      - "8010:8000" 
+    environment:
+      - ICECAST_SOURCE_PASSWORD=srcpassword
+      - ICECAST_RELAY_PASSWORD=password
+      - ICECAST_ADMIN_PASSWORD=password
+      - ICECAST_HOSTNAME=localhost #hg.hypergrid.net
+      - ICECAST_LOCATION=Earth
+      - ICECAST_ADMIN=admin
+    volumes:
+      - ../volumes/icecast-logs:/var/log/icecast2
+    networks:
+      - streaming-network
+
+networks:
+  streaming-network:
+    driver: bridge
