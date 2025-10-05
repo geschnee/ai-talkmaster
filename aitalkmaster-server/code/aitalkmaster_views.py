@@ -14,7 +14,11 @@ import traceback
 from code.aitalkmaster_utils import PostMessageRequest, AitalkmasterInstance, remove_name, MessageResponseRequest, StopJoinkeyRequest, GenerateAudioRequest, ChatResponse, start_liquidsoap
 from code.validation_utils import validate_chat_model_decorator, validate_audio_voice_decorator, validate_audio_model_decorator
 from code.shared import app, config, log
+from pydub import AudioSegment
 
+from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
+import io
 
 active_aitalkmaster_instances = {}
 finished_aitalkmaster_instances = []
@@ -45,6 +49,32 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
             speed=1.0)
     with open(filename, "wb") as f:
         f.write(response.content)
+
+    audio = AudioSegment.from_file(io.BytesIO(response.content), format="mp3")
+    output_path = filename
+    audio.export(output_path, format="mp3", bitrate="192k")
+
+import mutagen
+from mutagen.easyid3 import EasyID3
+
+def save_metadata(filename: str, charactername: str, join_key: str):
+    # Ensure the file has ID3 tags (some generated files don't)
+
+    mp3 = MP3(filename)
+    if mp3.tags is None:
+        mp3.add_tags()
+    
+    #audio = MP3(filename)
+    #if audio.tags is None:
+    #    audio.add_tags()
+
+    # Use EasyID3 to set metadata
+    tags = EasyID3(filename)
+    tags["title"] = join_key
+    tags["artist"] = charactername
+    tags["album"] = join_key
+    tags["genre"] = "Speech"
+    tags.save()
 
 def move_audio_files_to_inactive(join_key: str):
     """Move audio files from active to inactive folder when conversation is reset"""
@@ -191,8 +221,9 @@ def postaiTMessage(request: PostMessageRequest):
 
         
 
-        filename = save_audio(filename, response_msg, request.audio_voice or "", request.audio_model or "", request.audio_description or "")
+        save_audio(filename, response_msg, request.audio_voice or "", request.audio_model or "", request.audio_description or "")
         
+        save_metadata(filename, request.charactername, join_key)
         
         ait_instance.set_audio_created_at(request.message_id, time.time())
         
@@ -323,27 +354,9 @@ def generateAudio(request: GenerateAudioRequest):
         # Generate filename with sequence number
         filename = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.username}_{request.message_id}_{request.audio_voice}_{str(uuid.uuid4())}.mp3'
         
-        # Generate audio file
-        if config.audio_client.mode == "openai":
-            response = config.get_or_create_openai_audio_client().audio.speech.create(
-                model=request.audio_model,
-                voice=request.audio_voice,
-                input=request.message,
-                instructions=request.audio_description,
-                response_format="mp3",
-                speed=1.0)
-        else:
-            response = config.get_or_create_ollama_audio_client().audio.speech.create(
-                model=request.audio_model,
-                voice=request.audio_voice,
-                input=request.message,
-                instructions=request.audio_description,
-                response_format="mp3",
-                speed=1.0)
-        
-        # Save the audio file
-        with open(filename, "wb") as f:
-            f.write(response.content)
+        save_audio(filename, request.message, request.audio_voice, request.audio_model, request.audio_description)
+
+        save_metadata(filename, request.username, join_key)
         
         log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio: message: {request.message} -> {filename}')
         

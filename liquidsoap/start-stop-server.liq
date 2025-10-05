@@ -25,17 +25,23 @@ def create_stream(join_key) =
 
     # Function to check if a file was already played
     def check(r)
-        m = request.metadata(r)
 
-        if l.last(m) == infinity then
-            log.important("Playing #{m['initial_uri']}")
-            # print("Playing #{m['initial_uri']}")
-            l.add(m)
-            true
-        else
-            log.important("Rejecting #{m['initial_uri']}")
-            false
-        end
+      # TODO can we implement a waiting process here?
+      # if there is a long message being played, i am not sure how it handles newly generated files
+      # I suspect they are "played" concurrently (from logs) --> the second file is not heard on the stream
+
+      m = request.metadata(r)
+
+      if l.last(m) == infinity then
+          log.important("Playing #{m['initial_uri']}")
+          print("Playing #{m['initial_uri']}")
+          l.add(m)
+          true
+      else
+          log.important("Rejecting #{m['initial_uri']}")
+          print("Rejecting #{m['initial_uri']}")
+          false
+      end
     end
     generated_playlist = playlist("/generated-audio/active/#{join_key}", loop=false, reload=1, reload_mode="seconds", mode="normal", check_next=check)
 

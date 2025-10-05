@@ -9,7 +9,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+
 
 # Copy requirements first for better caching
 COPY ./aitalkmaster-server/requirements.txt .

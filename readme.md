@@ -180,57 +180,6 @@ docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest
 actor should stop polling after XXX seconds
 
 
-# background noise
-
-TODO einbauen
-
-# Audio Stream
-
-sl audio stream kann keine gesamte Audiodatei abspielen, es wird an einem punkt abgebrochen, warum?
-
-Hypothese:
-Streaming listener macht einen Request auch bevor ein chunk abgespielt wurde
-warum? damit er bereit ist den aktuellen content zu spielen
-
-wenn er neuen content erhält spult er vor --> "chipmunk"
-
-
-# Python audio stream ist nicht einfach
-
-andere wege finden?
-
-Icecast erfordert, dass man audio streamt, ähnlich wie es das Problem beim Python Server war
-
-use liquidsoap to stream to icecast?
-https://github.com/savonet/liquidsoap
-https://github.com/savonet/liquidsoap/tree/main
-
-
-# Skript / stream verhält sich unterschiedlich mit Talking audio und whatstosay audio
-
-haben die beiden MP3 eine andere Rate? was dann die ausgabe der generierten verändert
-
---> klingt gut mit whatstosay
---> klingt nicht gut mit talking audio
-
-## Lösung
-
-sehr kurze whatstosay type Datei für warten
-
-
-
-## transcode from python to Icecast using liquisoap
-
-https://www.liquidsoap.info/doc-2.4.0/cookbook.html#transcoding
-
-Implement fallback (Stream URL not availible)
-https://www.liquidsoap.info/doc-2.4.0/quick_start.html
-
-
-Stream Warnmeldung Windows und Linux:
-
-liquidsoap-streamer  | 2025/09/25 13:12:58 [clock.output.icecast:2] Latency is too high: we must catchup 9.19 seconds! Check if your system can process your stream fast enough (CPU usage, disk access, etc) or if your stream should be self-sync (can happen when using `input.ffmpeg`). Refer to the latency control section of the documentation for more info.
-
 
 
 # docker rebuild no dependencies
