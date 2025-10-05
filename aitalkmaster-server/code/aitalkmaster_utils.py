@@ -66,8 +66,8 @@ class PostMessageRequest(BaseModel):
     audio_description: Optional[str] = ""
     audio_model: Optional[str] = ""
 
-class TheaterPlay:
-    """Simplified TheaterPlay class using message classes for better readability"""
+class AitalkmasterInstance:
+    """Simplified AitalkmasterInstance class using message classes for better readability"""
     
     def __init__(self, join_key: str):
         self.join_key = join_key
@@ -174,8 +174,17 @@ class MessageResponseRequest(BaseModel):
     join_key: str
     message_id: str
 
-class ResetTheaterRequest(BaseModel):
+class StopJoinkeyRequest(BaseModel):
     join_key: str
+
+class GenerateAudioRequest(BaseModel):
+    join_key: str
+    username: str
+    message: str
+    message_id: str
+    audio_description: Optional[str] = ""
+    audio_voice: Optional[str] = ""
+    audio_model: Optional[str] = ""
 
 
 class ChatResponse(BaseModel):

@@ -33,11 +33,11 @@ def create_stream(join_key) =
             l.add(m)
             true
         else
-            # log.important("Rejecting #{m['initial_uri']}")
+            log.important("Rejecting #{m['initial_uri']}")
             false
         end
     end
-    generated_playlist = playlist("/generated_audio/active/#{join_key}", loop=false, reload=1, reload_mode="seconds", mode="normal", check_next=check)
+    generated_playlist = playlist("/generated-audio/active/#{join_key}", loop=false, reload=1, reload_mode="seconds", mode="normal", check_next=check)
 
     waiting_playlist = playlist("/fallback-audio/", mode="normal")
     waiting_playlist = amplify(0.8, waiting_playlist)

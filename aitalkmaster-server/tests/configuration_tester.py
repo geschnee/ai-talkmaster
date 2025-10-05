@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Configuration Testing Script for AI Theater
+Configuration Testing Script for AI Talkmaster
 Tests different configurations and compares performance metrics across:
 - Ollama text generation
 - OpenAI text generation  
@@ -27,7 +27,7 @@ import traceback
 # Import the existing modules
 from openai import OpenAI
 from ollama import Client
-from code.aitalkmaster_utils import TheaterPlay, PostMessageRequest, remove_name
+from code.aitalkmaster_utils import AitalkmasterInstance, PostMessageRequest, remove_name
 
 
 @dataclass
@@ -53,7 +53,7 @@ class ConfigurationChatTest:
     test_message: str
     username: str
     character_name: str = "TestCharacter"
-    play_history: Optional[List[Dict[str, Any]]] = None  # Optional conversation history
+    history: Optional[List[Dict[str, Any]]] = None  # Optional conversation history
 
 
 @dataclass
@@ -63,7 +63,7 @@ class ConfigurationAudioTest:
     audio_client_mode: str  # 'openai' or 'kokoro'
     audio_model: str
     audio_voice: str
-    audio_description: str = "Generate natural speech for a virtual theater character"
+    audio_description: str = "Generate natural speech for a virtual aitalkmaster character"
     test_text: str = "This is a test response for audio generation. It contains enough text to properly test the audio generation capabilities."
 
 
@@ -104,7 +104,7 @@ class ConfigurationTester:
         except Exception as e:
             print(f"Warning: Could not initialize all clients: {e}")
     
-    def get_response_ollama(self, request: PostMessageRequest, play: TheaterPlay) -> str:
+    def get_response_ollama(self, request: PostMessageRequest, ait_instance: AitalkmasterInstance) -> str:
         """Get response from Ollama chat client"""
         if self.ollama_chat_client is None:
             raise RuntimeError("Ollama chat client not initialized")
@@ -114,14 +114,14 @@ class ConfigurationTester:
             "role": "system",
             "content": request.system_instructions  
         })
-        for d in play.getDialog():
+        for d in ait_instance.getDialog():
             full_dialog.append(d)
 
         response = self.ollama_chat_client.chat(model=request.model, messages=full_dialog)
         response_msg = remove_name(response["message"]["content"], request.charactername)
         return response_msg
     
-    def get_response_openai(self, request: PostMessageRequest, play: TheaterPlay) -> str:
+    def get_response_openai(self, request: PostMessageRequest, ait_instance: AitalkmasterInstance) -> str:
         """Get response from OpenAI chat client"""
         if self.openai_chat_client is None:
             raise RuntimeError("OpenAI chat client not initialized")
@@ -133,7 +133,7 @@ class ConfigurationTester:
 
         response = self.openai_chat_client.responses.parse(
             model=request.model,
-            input=play.getDialog(),
+            input=ait_instance.getDialog(),
             instructions=request.system_instructions,
             text_format=ChatResponse,
             store=False
@@ -144,32 +144,32 @@ class ConfigurationTester:
             
         return response.output_parsed.text_response
     
-    def create_theater_play_with_history(self, join_key: str, play_history: Optional[List[Dict[str, Any]]] = None) -> TheaterPlay:
-        """Create a TheaterPlay with optional conversation history"""
-        play = TheaterPlay(join_key=join_key)
+    def create_ait_instance_with_history(self, join_key: str, history: Optional[List[Dict[str, Any]]] = None) -> AitalkmasterInstance:
+        """Create a AitalkmasterInstance with optional conversation history"""
+        ait_instance = AitalkmasterInstance(join_key=join_key)
         
-        if play_history:
-            for history_item in play_history:
+        if history:
+            for history_item in history:
                 if history_item.get("role") == "user":
-                    play.addUserMessage(
+                    ait_instance.addUserMessage(
                         message=history_item["content"],
                         name=history_item.get("name", "TestUser"),
-                        message_id=history_item.get("message_id", f"hist_{len(play.dialog)}")
+                        message_id=history_item.get("message_id", f"hist_{len(ait_instance.dialog)}")
                     )
                 elif history_item.get("role") == "assistant":
-                    play.addResponse(
+                    ait_instance.addResponse(
                         response=history_item["content"],
                         name=history_item.get("name", "TestCharacter"),
-                        response_id=history_item.get("response_id", f"hist_resp_{len(play.assistant_responses)}"),
+                        response_id=history_item.get("response_id", f"hist_resp_{len(ait_instance.assistant_responses)}"),
                         filename=history_item.get("filename", "")
                     )
         
-        return play
+        return ait_instance
     
     @staticmethod
-    def create_simple_play_history(conversation: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
+    def create_simple_history(conversation: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
         """
-        Create play history from a simple conversation format.
+        Create ait_instance history from a simple conversation format.
         
         Args:
             conversation: List of tuples (role, content) where role is "user" or "assistant"
@@ -178,7 +178,7 @@ class ConfigurationTester:
             List of history items in the correct format
             
         Example:
-            history = ConfigurationTester.create_simple_play_history([
+            history = ConfigurationTester.create_simple_history([
                 ("user", "Hello!"),
                 ("assistant", "Hi there! How can I help you?"),
                 ("user", "Tell me about AI")
@@ -222,8 +222,8 @@ class ConfigurationTester:
         basic_instructions = "You are a helpful AI assistant."
         character_instructions = "You are Vladimir, a man waiting for the ominous Godot. You pass the time waiting by talking to Estragon. Your hope fades slowly as you are uncertain when Godot arrives. The longer you two are waiting the less sure you are Godot arrives.\n\nDo not describe what you are doing, just talk.\nTalk as if you are Vladimir, do not speak the dialogue of other characters.\nRespond in short messages only, about 5 sentences maximum."
         
-        # Example play history for testing with conversation context
-        example_play_history = [
+        # Example ait_instance history for testing with conversation context
+        example_history = [
             {
                 "role": "user",
                 "content": "Hello Vladimir, do you know what time it is?",
@@ -270,7 +270,7 @@ class ConfigurationTester:
                 chat_model="gpt-4o-mini",
                 system_instructions=character_instructions,
                 test_message="I'd love to learn more about philosophy. Can you tell me about existentialism?",
-                play_history=example_play_history,
+                history=example_history,
                 username="Luzzo"
             ),
             
@@ -298,7 +298,7 @@ class ConfigurationTester:
                 system_instructions=character_instructions,
                 test_message="Yes, he will arrive tomorrow",
                 username="Luzzo",
-                play_history=example_play_history
+                history=example_history
             )
         ]
         
@@ -374,9 +374,9 @@ class ConfigurationTester:
         start_time = time.time()
         
         try:
-            # Create a test theater play with proper join_key and optional history
+            # Create a test ait_instance with proper join_key and optional history
             join_key = f"test_{test_id}"
-            play = self.create_theater_play_with_history(join_key, config.play_history)
+            ait_instance = self.create_ait_instance_with_history(join_key, config.history)
             
             # Create request object with all required fields like postaiTMessage
             request = PostMessageRequest(
@@ -393,15 +393,15 @@ class ConfigurationTester:
                 audio_model=""  # Not needed for chat tests
             )
             
-            # Add user message to the play (like in postaiTMessage)
-            play.addUserMessage(request.message, name=request.username, message_id=request.message_id)
+            # Add user message to the ait_instance (like in postaiTMessage)
+            ait_instance.addUserMessage(request.message, name=request.username, message_id=request.message_id)
             
             # Call appropriate text generation function
             if config.chat_client_mode == "openai":
-                response_text = self.get_response_openai(request, play)
+                response_text = self.get_response_openai(request, ait_instance)
                 api_type = "openai_text"
             elif config.chat_client_mode == "ollama":
-                response_text = self.get_response_ollama(request, play)
+                response_text = self.get_response_ollama(request, ait_instance)
                 api_type = "ollama_text"
             else:
                 raise ValueError(f"Unknown chat client mode: {config.chat_client_mode}")
@@ -481,8 +481,6 @@ class ConfigurationTester:
             
             duration = time.time() - start_time
             
-            # Get audio file size
-            audio_size = Path(filename).stat().st_size if Path(filename).exists() else 0
             
             return TestResult(
                 test_id=test_id,

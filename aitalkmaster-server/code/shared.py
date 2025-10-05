@@ -11,7 +11,7 @@ config = get_config()
 
 
 def log(message):
-    with open(config.paths.log_file, "a") as file:
+    with open(config.aitalkmaster.log_file, "a") as file:
         file.write(message + "\n")
     print(message)
 

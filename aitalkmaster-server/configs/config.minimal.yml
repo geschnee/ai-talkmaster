@@ -25,11 +25,7 @@ audio_client:
 # Note: liquidsoap_client and icecast_client sections are omitted
 # This allows the system to run without streaming capabilities
 
-# Theater Configuration
-theater:
+# Aitalkmaster Configuration
+aitalkmaster:
   join_key_keep_alive_list: []
-
-# File Paths
-paths:
-  openai_key: "openai_key.txt"
   log_file: "./logs/logfile.txt"

@@ -1,5 +1,7 @@
 
 import requests
+from functools import wraps
+from fastapi.responses import JSONResponse
 
 from code.shared import app, config
 
@@ -80,3 +82,86 @@ def validate_audio_model(model: str) -> tuple[bool, str, list]:
         
     except Exception as e:
         return False, f"Error validating audio model: {str(e)}", []
+
+def validate_chat_model_decorator(func):
+    """
+    Decorator to validate chat model in request parameters.
+    Expects the function to receive a request object with 'model' and 'message_id' attributes.
+    """
+    @wraps(func)
+    def wrapper(request, *args, **kwargs):
+        # Validate chat model
+        if request.model == "":
+            request.model = config.chat_client.default_model
+
+        is_valid_model, model_error, available_models = validate_chat_model(request.model)
+        if not is_valid_model:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "message_id": request.message_id,
+                    "error": f"Invalid chat model: {model_error}",
+                    "available_models": available_models
+                }
+            )
+        
+        # If validation passes, call the original function
+        return func(request, *args, **kwargs)
+    
+    return wrapper
+
+def validate_audio_voice_decorator(func):
+    """
+    Decorator to validate audio voice in request parameters.
+    Expects the function to receive a request object with 'audio_voice' and 'message_id' attributes.
+    """
+    @wraps(func)
+    def wrapper(request, *args, **kwargs):
+        # Validate audio voice
+        
+        if request.audio_voice == "":
+            request.audio_voice = config.audio_client.default_voice
+            
+        is_valid_voice, voice_error, available_voices = validate_audio_voice(request.audio_voice)
+        if not is_valid_voice:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "message_id": request.message_id,
+                    "error": f"Invalid audio voice: {voice_error}",
+                    "available_voices": available_voices
+                }
+            )
+        
+        # If validation passes, call the original function
+        return func(request, *args, **kwargs)
+    
+    return wrapper
+
+def validate_audio_model_decorator(func):
+    """
+    Decorator to validate audio model in request parameters.
+    Expects the function to receive a request object with 'audio_model' and 'message_id' attributes.
+    """
+    @wraps(func)
+    def wrapper(request, *args, **kwargs):
+        # Validate audio model
+        if request.audio_model == "":
+            request.audio_model = config.audio_client.default_model
+
+
+        is_valid_audio_model, audio_model_error, available_audio_models = validate_audio_model(request.audio_model)
+        if not is_valid_audio_model:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "message_id": request.message_id,
+                    "error": f"Invalid audio model: {audio_model_error}",
+                    "available_audio_models": available_audio_models
+                }
+            )
+        
+        # If validation passes, call the original function
+        return func(request, *args, **kwargs)
+    
+    return wrapper

@@ -31,10 +31,7 @@ icecast_client:
   port: 8000
   admin_password: "password"
 
-# Theater Configuration
-theater:
+# Aitalkmaster Configuration
+aitalkmaster:
   join_key_keep_alive_list: []
-
-# File Paths
-paths:
   log_file: "./logs/logfile.txt"

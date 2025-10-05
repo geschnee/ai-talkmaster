@@ -16,7 +16,7 @@ from configuration_tester import ConfigurationTester
 
 async def run_full_test():
     """Run the full test suite (chat + audio tests)"""
-    print("AI Theater Configuration Tester - Full Test Suite")
+    print("AI Talkmaster Configuration Tester - Full Test Suite")
     print("Running Chat and Audio Tests")
     print("=" * 50)
     
@@ -67,7 +67,7 @@ async def run_full_test():
 
 def main():
     """Main function with test type selection"""
-    print("AI Theater Configuration Tester")
+    print("AI Talkmaster Configuration Tester")
     
     asyncio.run(run_full_test())
     print(f'Tests completed')

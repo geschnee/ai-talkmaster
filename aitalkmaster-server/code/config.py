@@ -46,12 +46,6 @@ class IcecastClientConfig:
     admin_user: str = "admin"
     admin_password: str = "password"
 
-@dataclass
-class AITalkmasterConfig:
-    """AI Theater specific configuration"""
-    max_active_plays: int = 100
-    response_timeout: int = 60
-
 
 @dataclass
 class PathsConfig:
@@ -59,9 +53,10 @@ class PathsConfig:
     log_file: str = "logfile.txt"
 
 @dataclass
-class TheaterConfig:
-    """AI Theater configuration"""
+class AitalkmasterConfig:
+    """AI Talkmaster configuration"""
     join_key_keep_alive_list: list = Field(default_factory=list)
+    log_file: str = "logfile.txt"
 
 
 class Config:
@@ -154,16 +149,15 @@ class Config:
         else:
             self.icecast_client = None
         
-        # Paths configuration
         paths_data = self.config_data.get('paths', {})
         self.paths = PathsConfig(
             log_file=paths_data.get('log_file', 'logfile.txt')
         )
         
-        # Theater configuration
-        theater_data = self.config_data.get('theater', {})
-        self.theater = TheaterConfig(
-            join_key_keep_alive_list=theater_data.get('join_key_keep_alive_list', [])
+        aitalkmaster_data = self.config_data.get('aitalkmaster', {})
+        self.aitalkmaster = AitalkmasterConfig(
+            join_key_keep_alive_list=aitalkmaster_data.get('join_key_keep_alive_list', []),
+            log_file=aitalkmaster_data.get('log_file', 'logfile.txt')
         )
     
     def get_openai_key_from_file(self, file_path: str) -> str:
@@ -223,11 +217,9 @@ class Config:
                 'port': self.icecast_client.port,
                 'admin_password': self.icecast_client.admin_password
             } if self.icecast_client else None,
-            'paths': {
-                'log_file': self.paths.log_file
-            },
-            'theater': {
-                'join_key_keep_alive_list': self.theater.join_key_keep_alive_list
+            'aitalkmaster': {
+                'join_key_keep_alive_list': self.aitalkmaster.join_key_keep_alive_list,
+                'log_file': self.aitalkmaster.log_file
             }
         }
     

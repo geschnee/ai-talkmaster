@@ -11,13 +11,13 @@ from datetime import datetime
 
 import traceback
 
-from code.aitalkmaster_utils import PostMessageRequest, TheaterPlay, time_str, get_audio_duration, remove_name, MessageResponseRequest, ResetTheaterRequest, ChatResponse, start_liquidsoap
-from code.validation_utils import validate_chat_model, validate_audio_voice, validate_audio_model
+from code.aitalkmaster_utils import PostMessageRequest, AitalkmasterInstance, remove_name, MessageResponseRequest, StopJoinkeyRequest, GenerateAudioRequest, ChatResponse, start_liquidsoap
+from code.validation_utils import validate_chat_model_decorator, validate_audio_voice_decorator, validate_audio_model_decorator
 from code.shared import app, config, log
 
 
-active_theater_plays = {}
-finished_theater_plays = []
+active_aitalkmaster_instances = {}
+finished_aitalkmaster_instances = []
 
 
 
@@ -84,14 +84,14 @@ def move_audio_files_to_inactive(join_key: str):
 
 
 
-def get_response_ollama(request: PostMessageRequest, play: TheaterPlay) -> str:
+def get_response_ollama(request: PostMessageRequest, ait_instance: AitalkmasterInstance) -> str:
         
     full_dialog = []
     full_dialog.append({
         "role": "system",
         "content": request.system_instructions  
     })
-    for d in play.getDialog():
+    for d in ait_instance.getDialog():
         full_dialog.append(d)
 
     response = config.get_or_create_ollama_chat_client().chat(model=request.model, messages = full_dialog, options=request.options)
@@ -100,11 +100,11 @@ def get_response_ollama(request: PostMessageRequest, play: TheaterPlay) -> str:
     
     return response_msg
 
-def get_response_openai(request: PostMessageRequest, play: TheaterPlay) -> str:
+def get_response_openai(request: PostMessageRequest, ait_instance: AitalkmasterInstance) -> str:
 
     response = config.get_or_create_openai_chat_client().responses.parse(
         model=request.model,
-        input=play.getDialog(),
+        input=ait_instance.getDialog(),
         instructions=request.system_instructions,
         text_format=ChatResponse,
         store=False
@@ -132,68 +132,31 @@ def build_filename(request: PostMessageRequest):
     return fn
 
 
-def get_or_create_theater_play(join_key: str) -> TheaterPlay:
-    if join_key in active_theater_plays.keys():
-        play = active_theater_plays[join_key]
+def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
+    if join_key in active_aitalkmaster_instances.keys():
+        ait_instance = active_aitalkmaster_instances[join_key]
     else:
-        play = TheaterPlay(join_key=join_key)
+        stop_aitalkmaster(join_key)
+        ait_instance = AitalkmasterInstance(join_key=join_key)
         liquidsoap_success = start_liquidsoap(join_key)
-        active_theater_plays[join_key] = play
-    return play
+        active_aitalkmaster_instances[join_key] = ait_instance
+    return ait_instance
+
 
 @app.post("/aiT/postMessage")
+@validate_chat_model_decorator
+@validate_audio_voice_decorator
+@validate_audio_model_decorator
 def postaiTMessage(request: PostMessageRequest):
     try:
         data_json = request.model_dump()
         log(f'postMessage data: {data_json}')
 
-        # Validate chat model
-        is_valid_model, model_error, available_models = validate_chat_model(request.model)
-        if not is_valid_model:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "message_id": request.message_id,
-                    "error": f"Invalid chat model: {model_error}",
-                    "available_models": available_models
-                }
-            )
-
-        # Set defaults for audio parameters if empty
-        if request.audio_voice == "":
-            request.audio_voice = config.audio_client.default_voice
-        if request.audio_model == "":
-            request.audio_model = config.audio_client.default_model
-
-        # Validate audio voice
-        is_valid_voice, voice_error, available_voices = validate_audio_voice(request.audio_voice or "")
-        if not is_valid_voice:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "message_id": request.message_id,
-                    "error": f"Invalid audio voice: {voice_error}",
-                    "available_voices": available_voices
-                }
-            )
-
-        # Validate audio model
-        is_valid_audio_model, audio_model_error, available_audio_models = validate_audio_model(request.audio_model or "")
-        if not is_valid_audio_model:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "message_id": request.message_id,
-                    "error": f"Invalid audio model: {audio_model_error}",
-                    "available_audio_models": available_audio_models
-                }
-            )
-
         join_key = request.join_key
 
-        play = get_or_create_theater_play(join_key)
+        ait_instance = get_or_create_ait_instance(join_key)
 
-        if play.contains_message_id(request.message_id):
+        if ait_instance.contains_message_id(request.message_id):
             # TODO fix return codes and scripts
             return JSONResponse(
                 status_code=400, # TODO use a code, that the owner get messaged
@@ -203,14 +166,14 @@ def postaiTMessage(request: PostMessageRequest):
                 }
             )
         
-        play.addUserMessage(request.message, name=request.username, message_id=request.message_id)
+        ait_instance.addUserMessage(request.message, name=request.username, message_id=request.message_id)
         
 
         if config.chat_client.mode == "openai":
-            response_msg = get_response_openai(request, play)
+            response_msg = get_response_openai(request, ait_instance)
         elif config.chat_client.mode == "ollama":
             log(f'before get_response_ollama')
-            response_msg = get_response_ollama(request, play)
+            response_msg = get_response_ollama(request, ait_instance)
             log(f'obtained response_msg from ollama: {response_msg}')
         else:
             return JSONResponse(
@@ -224,14 +187,14 @@ def postaiTMessage(request: PostMessageRequest):
 
 
 
-        play.addResponse(response_msg, request.charactername, response_id=request.message_id, filename=filename)
+        ait_instance.addResponse(response_msg, request.charactername, response_id=request.message_id, filename=filename)
 
         
 
         filename = save_audio(filename, response_msg, request.audio_voice or "", request.audio_model or "", request.audio_description or "")
         
         
-        play.set_audio_created_at(request.message_id, time.time())
+        ait_instance.set_audio_created_at(request.message_id, time.time())
         
         log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} aiTSendMessage: data: {request.message} response: {response_msg}')
         
@@ -257,10 +220,10 @@ def getaiTMessageResponse(request: MessageResponseRequest):
     try:
         join_key = request.join_key
 
-        if join_key in active_theater_plays.keys():
-            play = active_theater_plays[join_key]
+        if join_key in active_aitalkmaster_instances.keys():
+            ait_instance = active_aitalkmaster_instances[join_key]
         else:
-            print(f'no active conv with key: {join_key}')
+            log(f'no active conv with key: {join_key}')
             return JSONResponse(
                 status_code=400,
                 content=f"There was no conversation with the join_key: {join_key}"
@@ -268,7 +231,7 @@ def getaiTMessageResponse(request: MessageResponseRequest):
 
         message_id = request.message_id
         
-        for assistant_resp in play.assistant_responses:
+        for assistant_resp in ait_instance.assistant_responses:
             if assistant_resp.response_id == message_id:
                 return JSONResponse(
                     status_code=200,
@@ -290,29 +253,31 @@ def getaiTMessageResponse(request: MessageResponseRequest):
             content=f"Internal server error: {str(e)}"
         )
     
-def stop_aitstream(join_key: str):
+def stop_aitalkmaster(join_key: str):
     # Move audio files to inactive folder before resetting
     move_success = move_audio_files_to_inactive(join_key)
     if move_success:
         log(f'Successfully moved audio files for {join_key} to inactive folder')
     else:
         log(f'Warning: Failed to move some audio files for {join_key}')
-    
-    finished_theater_plays.append(active_theater_plays[join_key])
 
-    del active_theater_plays[join_key]
-    
-    # Reset the sequence counter for this join_key
-    if join_key in audio_sequence_counters:
-        del audio_sequence_counters[join_key]
 
-@app.post("/aiT/resetTheater")
-def resetTheater(request: ResetTheaterRequest):
+    if join_key in active_aitalkmaster_instances.keys():
+        finished_aitalkmaster_instances.append(active_aitalkmaster_instances[join_key])
+
+        del active_aitalkmaster_instances[join_key]
+        
+        # Reset the sequence counter for this join_key
+        if join_key in audio_sequence_counters:
+            del audio_sequence_counters[join_key]
+
+@app.post("/aiT/stopJoinkey")
+def stopJoinkey(request: StopJoinkeyRequest):
     try:
         join_key = request.join_key
 
-        if join_key in active_theater_plays.keys():
-            stop_aitstream(join_key)
+        if join_key in active_aitalkmaster_instances.keys():
+            stop_aitalkmaster(join_key)
 
             log(f'conv has been reset: {join_key}')
         else:
@@ -322,8 +287,82 @@ def resetTheater(request: ResetTheaterRequest):
             content=f"{join_key} has been reset"
         )
     except Exception as e:
-        log(f'exception in /resetTheater: {e}')
+        log(f'exception in /aiT/stopJoinkey: {e}')
         return JSONResponse(
             status_code=500,
             content=f"Internal server error: {str(e)}"
+        )
+
+@app.post("/aiT/generateAudio")
+@validate_audio_voice_decorator
+@validate_audio_model_decorator
+def generateAudio(request: GenerateAudioRequest):
+    try:
+        data_json = request.model_dump()
+        log(f'generateAudio data: {data_json}')
+
+        join_key = request.join_key
+        ait_instance = get_or_create_ait_instance(join_key)
+
+
+        # Create directory for the join_key if it doesn't exist
+        join_key_dir = Path(f'./generated-audio/active/{request.join_key}')
+        join_key_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Get or initialize sequence counter for this join_key
+        if request.join_key not in audio_sequence_counters:
+            audio_sequence_counters[request.join_key] = 0
+        
+        # Increment sequence counter for this join_key
+        audio_sequence_counters[request.join_key] += 1
+        sequence_number = audio_sequence_counters[request.join_key]
+        
+        # Format sequence number with leading zeros for proper sorting (e.g., 001, 002, 003)
+        sequence_str = f"{sequence_number:03d}"
+        
+        # Generate filename with sequence number
+        filename = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.username}_{request.message_id}_{request.audio_voice}_{str(uuid.uuid4())}.mp3'
+        
+        # Generate audio file
+        if config.audio_client.mode == "openai":
+            response = config.get_or_create_openai_audio_client().audio.speech.create(
+                model=request.audio_model,
+                voice=request.audio_voice,
+                input=request.message,
+                instructions=request.audio_description,
+                response_format="mp3",
+                speed=1.0)
+        else:
+            response = config.get_or_create_ollama_audio_client().audio.speech.create(
+                model=request.audio_model,
+                voice=request.audio_voice,
+                input=request.message,
+                instructions=request.audio_description,
+                response_format="mp3",
+                speed=1.0)
+        
+        # Save the audio file
+        with open(filename, "wb") as f:
+            f.write(response.content)
+        
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio: message: {request.message} -> {filename}')
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message_id": request.message_id,
+                "filename": filename,
+                "status": "success"
+            }
+        )
+        
+    except Exception as e:
+        log(f'exception in /aiT/generateAudio: {e}')
+        log(f'stack: {traceback.print_exc()}')
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message_id": request.message_id,
+                "error": f"Internal server error: {str(e)}"
+            }
         )

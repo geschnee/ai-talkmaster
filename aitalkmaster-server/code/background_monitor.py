@@ -1,5 +1,5 @@
 """
-Background monitoring thread for checking active theater plays
+Background monitoring thread for checking active aitalkmaster instances
 """
 
 import threading
@@ -11,7 +11,7 @@ import requests
 from code.aitalkmaster_utils import stop_liquidsoap
 from code.shared import config, log
 from code.config import IcecastClientConfig
-from code.aitalkmaster_views import stop_aitstream
+from code.aitalkmaster_views import stop_aitalkmaster
 
 def get_mounts(IcecastClientConfig: IcecastClientConfig) -> list[str]:
     """Get all mount points from Icecast XML response"""
@@ -72,34 +72,34 @@ def icecast_list_mounts() -> list[str]:
         return get_mounts(config.icecast_client)
     return []
 
-def background_play_monitor():
-    """Background thread that regularly checks if plays are still active"""
+def background_aitalkmaster_monitor():
+    """Background thread that regularly checks if ait instances are still active"""
    
+    from code.aitalkmaster_views import active_aitalkmaster_instances
+
     if config.icecast_client == None:
-        log("No icecast client config found, cancel background play monitor")
+        log("No icecast client config found, cancel background aitalkmaster monitor")
         return
     
     while True:
         try:
-            # Import here to avoid circular imports
-            from code.aitalkmaster_views import active_theater_plays
             
-            log("Background play monitor: Checking active plays...")
+            log("Background aitalkmaster monitor: Checking active ait instances...")
             
             # Get the keep-alive list from config
-            keep_alive_list = config.theater.join_key_keep_alive_list if config.theater else []
+            keep_alive_list = config.aitalkmaster.join_key_keep_alive_list if config.aitalkmaster else []
             
 
             mounts = icecast_list_mounts()
 
-            # Check each active play
-            plays_to_remove = []
-            for join_key, play in active_theater_plays.items():
+            # Check each active ait instance
+            ait_instances_to_remove = []
+            for join_key, ait_instance in active_aitalkmaster_instances.items():
                 if join_key in keep_alive_list:
-                    # this play is kept alive, so we don't need to check if it's still active
+                    # this instance is kept alive, so we don't need to check if it's still active
                     continue
 
-                log(f"Checking play: {join_key}, created: {play.created_at}, last_listened: {play.last_listened_at}")
+                log(f"Checking ait instance: {join_key}, created: {ait_instance.created_at}, last_listened: {ait_instance.last_listened_at}")
                 
                 mount_path = f"/stream/{join_key}"
 
@@ -112,33 +112,37 @@ def background_play_monitor():
 
 
                 if stats > 0:
-                    play.last_listened_at = time.time()
+                    ait_instance.last_listened_at = time.time()
                 else:
-                    if play.last_listened_at + 30 * 24 * 60 * 60 < time.time():
-                        # remove the play after 30 days of inactivity
-                        plays_to_remove.append(join_key)
-                        log(f"Removed inactive play: {join_key}")
+                    if ait_instance.last_listened_at + 30 * 24 * 60 * 60 < time.time():
+                        # remove the instance after 30 days of inactivity
+                        ait_instances_to_remove.append(join_key)
 
-            
-            # Remove inactive plays
-            for join_key in plays_to_remove:
-                if join_key in active_theater_plays:
+            for mount in mounts:
+                join_key = mount.replace("/stream/", "")
+                if join_key not in active_aitalkmaster_instances.keys():
                     stop_liquidsoap(join_key)
-                    stop_aitstream(join_key)
-                    del active_theater_plays[join_key]
-                    log(f"Removed inactive play: {join_key}")
+                    log(f"Removed inactive mount: {join_key}")
+            
+            # Remove inactive ait instances
+            for join_key in ait_instances_to_remove:
+                if join_key in active_aitalkmaster_instances:
+                    stop_liquidsoap(join_key)
+                    stop_aitalkmaster(join_key)
+                    del active_aitalkmaster_instances[join_key]
+                    log(f"Removed inactive ait instance: {join_key}")
 
             
             # Sleep for 30 seconds before next check
             time.sleep(30)
             
         except Exception as e:
-            log(f"Error in background play monitor: {e}")
+            log(f"Error in background aitalkmaster monitor: {e}")
             time.sleep(30)  # Continue running even if there's an error
 
 def start_background_monitor():
     """Start the background monitoring thread"""
-    background_thread = threading.Thread(target=background_play_monitor, daemon=True)
+    background_thread = threading.Thread(target=background_aitalkmaster_monitor, daemon=True)
     background_thread.start()
-    log("Background play monitor thread started")
+    log("Background aitalkmaster monitor thread started")
     return background_thread

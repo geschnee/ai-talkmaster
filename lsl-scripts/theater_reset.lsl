@@ -24,7 +24,7 @@ integer whitelistCurrentLine=0;
 integer max_response_length = 16384;
 
 reset_theater_play(string join_key) {
-    llHTTPRequest("http://hg.hypergrid.net:7999/aiT/resetTheater", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest("http://hg.hypergrid.net:7999/aiT/stopJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"join_key\": \""+join_key+"\"
     }");
 }

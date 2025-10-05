@@ -11,7 +11,7 @@ def status(request: Request):
         status_code=200,
         content="status online")
 
-@app.get("/models")
+@app.get("/chatmodels")
 def get_available_models():
     """
     Returns the list of valid chat models from the configuration.
@@ -78,6 +78,35 @@ def get_available_voices():
         
     except Exception as e:
         log(f'Exception in /voices: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Internal server error: {str(e)}"}
+        )
+
+@app.get("/audiomodels")
+def get_available_audio_models():
+    """
+    Returns the list of valid audio models from the configuration.
+    Only shows models that are explicitly configured as valid_models.
+    """
+    try:
+        # Get configured audio models from config
+        audio_models = config.audio_client.valid_models
+        
+        log(f'Retrieved {len(audio_models)} configured audio models for {config.audio_client.mode}')
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "audio_client_mode": config.audio_client.mode,
+                "default_model": config.audio_client.default_model,
+                "audio_models": audio_models,
+                "model_count": len(audio_models)
+            }
+        )
+        
+    except Exception as e:
+        log(f'Exception in /audiomodels: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": f"Internal server error: {str(e)}"}

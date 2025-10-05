@@ -1,28 +1,24 @@
 
 import random
 from fastapi import Request
-from fastapi.responses import JSONResponse
 import time
 from fastapi.responses import StreamingResponse
 from pathlib import Path
-import uuid
-import shutil
-from datetime import datetime
 
-import traceback
 
-from code.aitalkmaster_utils import PostMessageRequest, TheaterPlay, time_str, get_audio_duration, remove_name, MessageResponseRequest, ResetTheaterRequest, ChatResponse
-from code.validation_utils import validate_chat_model, validate_audio_voice, validate_audio_model
-from code.shared import app, config, log
+from code.aitalkmaster_utils import AitalkmasterInstance, time_str, get_audio_duration
+from code.shared import app, log
 
-from code.aitalkmaster_views import active_theater_plays
+from code.aitalkmaster_views import active_aitalkmaster_instances
 
 # Track active connections by IP address
 stream_active_connections = {}
 stream_connection_counter = 0
 
+CHUNK_SIZE = 1024
+
 def generate_audio_stream(join_key: str, request: Request):
-    """Generator function to stream audio files from the specific TheaterPlay"""
+    """Generator function to stream audio files from the specific AitalkmasterInstance"""
     global stream_connection_counter, stream_active_connections
 
     stream_connection_counter += 1 
@@ -56,7 +52,7 @@ def generate_audio_stream(join_key: str, request: Request):
     log(f'{connectionname} {time_str()} Streaming audio for join_key: {join_key}, request URL: {request.url}, headers: {dict(request.headers)}, client: {client_ip}')
 
    
-    waiting_audio_files = ["whatstosay-1-15-LAME- 24KHz-128-mono.mp3", "whatstosay-2-15-LAME- 24KHz-128-mono.mp3", "whatstosay-3-15-LAME- 24KHz-128-mono.mp3"]# , "whatstosay-2-LAME- 24KHz-128-mono.mp3", "whatstosay-3-LAME- 24KHz-128-mono.mp3"]
+    waiting_audio_files = list(Path("fallback-audio").glob("*.mp3"))
 
 
     try:
@@ -76,15 +72,14 @@ def generate_audio_stream(join_key: str, request: Request):
                     log(f'{connectionname} {time_str()} Terminating connection - newer connection exists for IP {client_ip}')
                     return
             
-            log(f'{connectionname} {time_str()} played_audio_files {played_audio_files}')
 
-            if join_key in active_theater_plays:
+            if join_key in active_aitalkmaster_instances:
                 
-                play = active_theater_plays[join_key]
+                ait_instance = active_aitalkmaster_instances[join_key]
                 
                 # Get audio files from assistant responses in this play
                 audio_files_to_play = []
-                for assistant_resp in play.assistant_responses:
+                for assistant_resp in ait_instance.assistant_responses:
                     if assistant_resp.filename and Path(assistant_resp.filename).exists() and assistant_resp.filename not in played_audio_files:
                         # Check if audio_created_at exists and is within playback range
                         if assistant_resp.audio_created_at and assistant_resp.audio_created_at + playback_range > time.time():
@@ -97,19 +92,18 @@ def generate_audio_stream(join_key: str, request: Request):
             if audio_files_to_play==[]:
 
                 # No new audio files available, play some background sounds
-                audio_file = Path(random.choice(waiting_audio_files)) #Path("crowd-talking-quiet-short.mp3") # Path("crowd-talking-quiet-short.mp3")
+                audio_file = Path(random.choice(waiting_audio_files))
                 if audio_file.exists():
                     try:
                         duration = get_audio_duration(audio_file)
                         next_start = time.time() + duration
 
                         with open(audio_file, "rb") as f:
-                            chunk_size = 1024
-                            chunk = f.read(chunk_size)
+                            chunk = f.read(CHUNK_SIZE)
                             while chunk:
                                 try:
                                     yield chunk
-                                    chunk = f.read(chunk_size)
+                                    chunk = f.read(CHUNK_SIZE)
                                 except (BrokenPipeError, ConnectionResetError):
                                     log(time_str() + " stream client disconnected crowd")
                                     return  # Client disconnected
@@ -132,12 +126,11 @@ def generate_audio_stream(join_key: str, request: Request):
                         duration = get_audio_duration(audio_file)
                         next_start = time.time() + duration
                         with open(audio_file, "rb") as f:
-                            chunk_size = 1024
-                            chunk = f.read(chunk_size)
+                            chunk = f.read(CHUNK_SIZE)
                             while chunk:
                                 try:
                                     yield chunk
-                                    chunk = f.read(chunk_size)
+                                    chunk = f.read(CHUNK_SIZE)
                                 except (BrokenPipeError, ConnectionResetError):
                                     log(f'{connectionname} {time_str()} stream client disconnected')
                                     return  # Client disconnected
@@ -148,7 +141,6 @@ def generate_audio_stream(join_key: str, request: Request):
                 
                     played_audio_files.add(audio_file)
                     stream_active_connections[client_ip]["played_audio_files"] = played_audio_files
-                    log(f'{connectionname} {time_str()} stream_active_connections played_audio_files is now: {played_audio_files}')
     except BrokenPipeError:
         log(f'{connectionname} {time_str()} stream client disconnected broken pipe')
         return
@@ -164,14 +156,15 @@ def generate_audio_stream(join_key: str, request: Request):
 @app.get("/aiT/stream-audio/{join_key}")
 def stream_audio(join_key: str, request: Request):
     """
-    Stream audio files from the specific TheaterPlay, playing each assistant message audio once.
+    Stream audio files from the specific AitalkmasterInstance, playing each assistant message audio once.
+    This endpoint can be used, however the icecast mount provided by the liquidsoap and icecast services is preferred.
     """
 
-    if join_key not in active_theater_plays:
-        # No active play with this join_key, wait a bit and try again
-        print(f'The join_key {join_key} was not found in stream, create new play')
-        play = TheaterPlay(join_key=join_key)
-        active_theater_plays[join_key] = play
+    if join_key not in active_aitalkmaster_instances:
+        # No active ait_instance with this join_key, wait a bit and try again
+        print(f'The join_key {join_key} was not found in stream, create new ait_instance')
+        ait_instance = AitalkmasterInstance(join_key=join_key)
+        active_aitalkmaster_instances[join_key] = ait_instance
     
     return StreamingResponse(
         generate_audio_stream(join_key, request),

@@ -43,23 +43,15 @@ def test_config_values(config):
         print(f"   Valid voices: {config.openai.valid_voices}")
         print(f"   Valid models: {config.openai.valid_models}")
         
-        # Test audio config
-        print(f"   Audio directory: {config.audio.directory}")
-        print(f"   Chunk size: {config.audio.chunk_size}")
-        print(f"   Stream pacing: {config.audio.stream_pacing}s")
-        
         # Test logging config
         print(f"   Log file: {config.logging.log_file}")
         print(f"   Log level: {config.logging.log_level}")
         
-        # Test AI theater config
-        print(f"   Max active plays: {config.ai_theater.max_active_plays}")
-        print(f"   Response timeout: {config.ai_theater.response_timeout}s")
+        
         
         # Test paths config
-        print(f"   OpenAI key path: {config.paths.openai_key}")
-        print(f"   Audio directory path: {config.paths.audio_directory}")
-        print(f"   Log file path: {config.paths.log_file}")
+        print(f"   OpenAI key path: {config.aitalkmaster.openai_key}")
+        print(f"   Log file path: {config.aitalkmaster.log_file}")
         
         print("✅ All configuration values accessible!")
         
@@ -82,16 +74,7 @@ def test_openai_key_loading(config):
     except Exception as e:
         print(f"❌ Error loading OpenAI key: {e}")
 
-def test_audio_directory_creation(config):
-    """Test audio directory creation"""
-    print("\nTesting audio directory creation...")
-    
-    try:
-        audio_dir = config.create_audio_directory()
-        print(f"✅ Audio directory created/verified: {audio_dir}")
-        print(f"   Directory exists: {audio_dir.exists()}")
-    except Exception as e:
-        print(f"❌ Error creating audio directory: {e}")
+
 
 def test_config_reload():
     """Test configuration reloading"""
@@ -117,9 +100,6 @@ def main():
         
         # Test OpenAI key loading
         test_openai_key_loading(config)
-        
-        # Test audio directory creation
-        test_audio_directory_creation(config)
         
         # Test configuration reload
         test_config_reload()
