@@ -186,3 +186,17 @@ actor should stop polling after XXX seconds
 
 
 docker compose up --build --no-deps --force-recreate
+
+
+# audio delay
+
+About 16 seconds between file creation and audio via stream
+
+https://icecast.org/docs/icecast-2.3.1/config-file.html
+
+disabling burst-on-connect might reduce the delay!
+
+Tsting showed without the burst-on-connect about 5 seconds delay.
+
+## Result we change the burst-on-connect to false (0).
+

@@ -13,6 +13,7 @@ chat_client:
   # valid_models: ["llama3.2", "mistral", "deepseek-r1"]
   valid_models: ["gpt-4o-mini", "gpt-4o", ]
 
+# TODO make the chat client URL be used everywhere (also when the mode is openai (meaning another provider should be usable))
 
 # use host.docker.internal for the base url if the Ollama or Kokoro server is running on the host machine
 

@@ -7,7 +7,7 @@ settings.server.telnet.bind_addr := "0.0.0.0"
 
 log.file := true
 settings.log.file.path := "/var/log/liquidsoap/server.log"
-settings.log.level := 3
+settings.log.level := 4
 
 
 streams = ref([])
@@ -15,9 +15,11 @@ count = ref(0)
 
 
 def create_stream(join_key) =
+  print("Start streaming #{join_key} print")
   if
     list.assoc.mem(join_key, streams())
   then
+    print("Stream #{join_key} already exists")
     "Stream for join_key #{join_key} already exists!"
   else
 

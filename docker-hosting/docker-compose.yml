@@ -46,7 +46,10 @@ services:
 
     # icecast configs lie in /etc/icecast2/icecast.xml
   icecast:
-    image: moul/icecast:latest
+    #image: moul/icecast:latest
+    build:
+      context: ../
+      dockerfile: docker-hosting/icecast.Dockerfile
     restart: unless-stopped
     ports:
       - "8010:8000" 
@@ -54,9 +57,8 @@ services:
       - ICECAST_SOURCE_PASSWORD=srcpassword
       - ICECAST_RELAY_PASSWORD=password
       - ICECAST_ADMIN_PASSWORD=password
+      - ICECAST_PASSWORD=password
       - ICECAST_HOSTNAME=localhost #hg.hypergrid.net
-      - ICECAST_LOCATION=Earth
-      - ICECAST_ADMIN=admin
     volumes:
       - ../volumes/icecast-logs:/var/log/icecast2
     networks:

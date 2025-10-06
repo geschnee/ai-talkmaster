@@ -16,3 +16,5 @@ volumes/*
 
 .vscode/
 ai-talkmaster.code-workspace
+
+call_for_proposals.md

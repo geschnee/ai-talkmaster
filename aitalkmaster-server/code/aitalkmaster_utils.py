@@ -10,8 +10,6 @@ from dataclasses import dataclass
 import socket
 from code.shared import config, log
 
-
-
 def time_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

@@ -168,7 +168,7 @@ def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
     else:
         stop_aitalkmaster(join_key)
         ait_instance = AitalkmasterInstance(join_key=join_key)
-        liquidsoap_success = start_liquidsoap(join_key)
+        start_liquidsoap(join_key)
         active_aitalkmaster_instances[join_key] = ait_instance
     return ait_instance
 
@@ -215,8 +215,6 @@ def postaiTMessage(request: PostMessageRequest):
 
         filename = build_filename(request)
 
-
-
         ait_instance.addResponse(response_msg, request.charactername, response_id=request.message_id, filename=filename)
 
         
@@ -229,7 +227,6 @@ def postaiTMessage(request: PostMessageRequest):
         
         log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} aiTSendMessage: data: {request.message} response: {response_msg}')
         
-
 
         return JSONResponse(
             status_code=200,
