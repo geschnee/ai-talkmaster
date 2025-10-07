@@ -1,4 +1,4 @@
-// Theater performances are organised using the join_key
+// AIT performances are organised using the join_key
 // All agent that use this join_key are part of the same conversation
 // This script resets the conversation that belongs to the join_key
 
@@ -24,7 +24,7 @@ integer whitelistCurrentLine=0;
 integer max_response_length = 16384;
 
 reset_theater_play(string join_key) {
-    llHTTPRequest("http://hg.hypergrid.net:7999/aiT/stopJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest("http://hg.hypergrid.net:7999/ait/stopJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"join_key\": \""+join_key+"\"
     }");
 }
@@ -64,7 +64,7 @@ default
 
                 join_key = line;
                 llOwnerSay("join_key has been read " + join_key);
-                llOwnerSay("On channel " + command_channel + " you can reset the theater performance/conversation with join_key "+ join_key + " with the following command: resetTheater " +join_key);
+                llOwnerSay("On channel " + command_channel + " you can reset the theater performance/conversation with join_key "+ join_key + " with the following command: resetAIT " +join_key);
 
                 llListen(command_channel, "","","");
             }
@@ -106,10 +106,42 @@ default
             return;
         }
 
-        string respondingTo = "resetTheater " + join_key;
-        if(message==respondingTo) {
-            llInstantMessage(id, "Conversation " + join_key + " has been reset");
-            reset_theater_play(join_key);
+        if (channel == command_channel) {
+            // Handle both dialog responses and channel commands
+            if (message == "ResetAIT") {
+                llInstantMessage(id, "Conversation " + join_key + " has been reset");
+                reset_theater_play(join_key);
+            }
+            else if (message == "Status") {
+                llInstantMessage(id, "AIT Controller Status:");
+                llInstantMessage(id, "Join Key: " + join_key);
+                llInstantMessage(id, "Channel: " + (string)command_channel);
+                llInstantMessage(id, "Whitelisted users: " + (string)llGetListLength(whitelisted_users));
+            }
+            else if (message == "Close") {
+                llInstantMessage(id, "Dialog closed.");
+            }
+            else {
+                // Handle channel commands
+                string respondingTo = "resetAIT " + join_key;
+                if(message==respondingTo) {
+                    llInstantMessage(id, "Conversation " + join_key + " has been reset");
+                    reset_theater_play(join_key);
+                }
+            }
+        }
+    }
+
+    touch_start(integer total_number)
+    {
+        key toucher = llDetectedKey(0);
+        string username = llParseString2List(llKey2Name(toucher), ["@"], [])[0];
+        username = llStringTrim(username, 3);
+        
+        if (llListFindList(whitelisted_users, [username]) != -1) {
+            showDialog(toucher);
+        } else {
+            llInstantMessage(toucher, "You are not authorized to use this controller.");
         }
     }
     
@@ -120,4 +152,13 @@ default
             llResetScript();
         }
     }
+}
+
+// Function to show dialog interface
+showDialog(key user)
+{
+    llDialog(user, 
+        "AIT Controller for Join Key: " + join_key + "\nChannel: " + (string)command_channel + "\n\nWhat would you like to do?",
+        ["ResetAIT", "ActivateAllCharacters", "DeactivateAllCharacters", "Status", "Close"], 
+        command_channel);
 }

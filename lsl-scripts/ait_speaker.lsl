@@ -1,27 +1,26 @@
-// Theater Moderator Script
+// Speaker Script
 // Two states: active and inactive (default: inactive)
 // Listens on channel 8 (config) and channel 0
 // Only responds to owner's messages
+// When active the speakers messages get forwarded to AI Talkmaster and are simply voiced for the audio stream.
 
-integer moderator_channel = 8;
+
+integer configChannel = 8;
 integer com_channel = 0;
 
 // State management
 integer isActive = 0; // 0 = inactive, 1 = active
 
+// Visual feedback colors
+vector inactiveColor = <0.2, 0.2, 0.2>; // Dark gray for inactive
+vector activeColor = <1.0, 1.0, 1.0>;   // Bright white for active
+
 // Property reading variables (similar to theater_actor)
-string parametersNotecardName = "llm-parameters";
-string systemNotecardName = "llm-system"; 
+string parametersNotecardName = "speaker-parameters";
 key parametersNotecardQueryId;
-key systemNotecardQueryId;
 integer parametersCurrentLine = 0;
-integer systemCurrentLine = 0;
-list systemNotecardLines = [];
 
 // Properties
-string charactername;
-string model;
-string systemInstructions;
 string audio_description;
 string audio_voice;
 string audio_model;
@@ -40,9 +39,7 @@ key joinkeyNotecardQueryId;
 string join_key;
 
 // Validation variables
-key modelsValidationId;
 key voicesValidationId;
-integer modelsValidated = 0;
 integer voicesValidated = 0;
 integer validationInProgress = 0;
 
@@ -181,24 +178,11 @@ sendToGenerateAudio(string username, string message)
     }";
     
     llOwnerSay("Sending message to generateAudio: " + message);
-    llHTTPRequest("http://hg.hypergrid.net:7999/aiT/generateAudio", 
+    llHTTPRequest("http://hg.hypergrid.net:7999/ait/generateAudio", 
         [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], 
         body);
 }
 
-// Function to validate model against /models endpoint
-validateModel(string modelToValidate)
-{
-    if (validationInProgress) {
-        llOwnerSay("Validation already in progress, please wait...");
-        return;
-    }
-    
-    validationInProgress = 1;
-    llOwnerSay("Validating model: " + modelToValidate);
-    modelsValidationId = llHTTPRequest("http://hg.hypergrid.net:7999/audiomodels", 
-        [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
-}
 
 // Function to validate audio parameters against /voices endpoint
 validateAudioParameters(string voiceToValidate, string audioModelToValidate)
@@ -222,34 +206,41 @@ integer isValueInJsonArray(string jsonString, string value)
 // Function to validate all parameters after they are loaded
 validateAllParameters()
 {
-    if (model == "" || audio_voice == "" || audio_model == "") {
+    if (audio_voice == "" || audio_model == "") {
         llOwnerSay("Error: Some parameters are missing. Cannot validate.");
         return;
     }
     
     llOwnerSay("Starting parameter validation...");
-    validateModel(model);
+    validateAudioParameters(audio_voice, audio_model);
 }
 
-// State: INACTIVE (default)
+// Default state - automatically switch to inactive
+default
+{
+    state_entry()
+    {
+        llOwnerSay("AIT Speaker: Initializing...");
+        state inactive;
+    }
+}
+
+// State: INACTIVE
 state inactive
 {
     state_entry()
     {
-        llOwnerSay("Theater Moderator: INACTIVE state");
-        llOwnerSay("Use channel " + moderator_channel + " commands to activate:");
-        llOwnerSay("  activate - activate moderator");
-        llOwnerSay("  status - show current status");
+        llOwnerSay("AIT Speaker: INACTIVE state");
+        llOwnerSay("Use channel " + configChannel + " or click the object for changing the state");
+        
+        // Set visual state to inactive
+        isActive = 0;
+        updateVisualState();
         
         // Initialize property reading
         if (llGetInventoryType(parametersNotecardName) != INVENTORY_NOTECARD)
         {
             llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found.");
-            return;
-        }
-        if (llGetInventoryType(systemNotecardName) != INVENTORY_NOTECARD)
-        {
-            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found.");
             return;
         }
         if (llGetInventoryType(joinkeyNotecardName) != INVENTORY_NOTECARD)
@@ -261,11 +252,10 @@ state inactive
         // Start reading notecards
         start_optionstring();
         parametersNotecardQueryId = llGetNotecardLine(parametersNotecardName, parametersCurrentLine);
-        systemNotecardQueryId = llGetNotecardLine(systemNotecardName, systemCurrentLine);
         joinkeyNotecardQueryId = llGetNotecardLine(joinkeyNotecardName, 0);
         
-        // Listen on moderator channel only
-        llListen(moderator_channel, "","","");
+        // Listen on config channel
+        llListen(configChannel, "","","");
     }
 
     listen(integer channel, string name, key id, string message)
@@ -275,18 +265,21 @@ state inactive
             return;
         }
         
-        if (channel == moderator_channel) {
-            if (message == "activate") {
-                llOwnerSay("Activating Theater Moderator...");
+        if (channel == configChannel) {
+            // Handle dialog responses
+            if (message == "ActivateSpeaker") {
+                llOwnerSay("Activating AIT Speaker...");
+                isActive = 1; // Set active state
+                updateVisualState(); // Update visual appearance
                 llListen(0, "","",""); // Start listening on channel 0
-                llStateChange(active);
+                state active;
             }
             else if (message == "status") {
-                llOwnerSay("Theater Moderator Status: INACTIVE");
-                llOwnerSay("Properties loaded: " + charactername + " | " + model + " | " + audio_voice);
+                llOwnerSay("AIT Speaker Status: INACTIVE");
+                llOwnerSay("Properties loaded: " + audio_voice + " | " + audio_model);
             }
-            else {
-                llOwnerSay("Unknown command. Available commands: activate, status");
+            else if (message == "Close") {
+                llOwnerSay("Dialog closed.");
             }
         }
     }
@@ -305,14 +298,6 @@ state inactive
                     string paramName = llList2String(splits, 0);
                     string value = llList2String(splits, 1);
 
-                    if (paramName == "charactername") 
-                    {
-                        charactername = value;
-                    }
-                    if (paramName == "model") 
-                    {
-                        model = value;
-                    }
                     if (paramName == "audio_voice") 
                     {
                         audio_voice = value;
@@ -345,8 +330,6 @@ state inactive
             {
                 // Parameters loaded
                 llOwnerSay("Parameters loaded:");
-                llOwnerSay("charactername: " + charactername);
-                llOwnerSay("model: " + model);
                 llOwnerSay("audio_description: " + audio_description);
                 llOwnerSay("audio_voice: " + audio_voice);
                 llOwnerSay("audio_model: " + audio_model);
@@ -359,23 +342,6 @@ state inactive
             }
         }
         
-        if (query_id == systemNotecardQueryId)
-        {
-            if (data != EOF)
-            {
-                string line = [data];
-                systemNotecardLines += line;
-                systemCurrentLine++;
-                systemNotecardQueryId = llGetNotecardLine(systemNotecardName, systemCurrentLine);
-            }
-            else
-            {
-                string entireContent = llDumpList2String(systemNotecardLines, "\\n");
-                llOwnerSay("System notecard content loaded:");
-                llOwnerSay("system: " + entireContent);
-                systemInstructions = ReplaceQuotesForJson(entireContent);
-            }
-        }
         
         if (query_id == joinkeyNotecardQueryId)
         {
@@ -391,30 +357,6 @@ state inactive
     http_response(key request_id, integer status, list metadata, string body)
     {
         // Handle validation responses
-        if (request_id == modelsValidationId) {
-            if (status == 200) {
-                llOwnerSay("Models validation response received");
-                string chatModels = llJsonGetValue(body, ["audio_models"]);
-                if (isValueInJsonArray(chatModels, model)) {
-                    llOwnerSay("✓ Model '" + model + "' is valid");
-                    modelsValidated = 1;
-                } else {
-                    llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
-                    modelsValidated = 0;
-                }
-                
-                if (modelsValidated) {
-                    validateAudioParameters(audio_voice, audio_model);
-                } else {
-                    validationInProgress = 0;
-                }
-            } else {
-                llOwnerSay("Error validating model: HTTP " + (string)status + " - " + body);
-                validationInProgress = 0;
-            }
-            return;
-        }
-        
         if (request_id == voicesValidationId) {
             if (status == 200) {
                 llOwnerSay("Voices validation response received");
@@ -438,8 +380,10 @@ state inactive
                 
                 voicesValidated = (voiceValid && audioModelValid) ? 1 : 0;
                 
-                if (modelsValidated && voicesValidated) {
+                if (voicesValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
+                    // Show dialog after successful validation
+                    showDialog(llGetOwner());
                 } else {
                     llOwnerSay("✗ Parameter validation failed. Please check your configuration.");
                 }
@@ -450,6 +394,14 @@ state inactive
                 validationInProgress = 0;
             }
             return;
+        }
+    }
+
+    touch_start(integer total_number)
+    {
+        key toucher = llDetectedKey(0);
+        if (toucher == llGetOwner()) {
+            showDialog(toucher);
         }
     }
 
@@ -467,14 +419,16 @@ state active
 {
     state_entry()
     {
-        llOwnerSay("Theater Moderator: ACTIVE state");
-        llOwnerSay("Listening on channels " + moderator_channel + " and 0");
-        llOwnerSay("Use channel " + moderator_channel + " commands:");
-        llOwnerSay("  deactivate - deactivate moderator");
-        llOwnerSay("  status - show current status");
+        llOwnerSay("AIT Speaker: ACTIVE state");
+        llOwnerSay("Will forward your messages on channel 0 to AIT and turn it into voice");
+        llOwnerSay("Use channel " + configChannel + " or click the object for changing the state");
         
-        // Listen on both channels
-        llListen(moderator_channel, "","","");
+        // Set visual state to active
+        isActive = 1;
+        updateVisualState();
+        
+        // Listen on all channels
+        llListen(configChannel, "","","");
         llListen(0, "","","");
     }
 
@@ -485,27 +439,35 @@ state active
             return;
         }
         
-        if (channel == moderator_channel) {
-            if (message == "deactivate") {
-                llOwnerSay("Deactivating Theater Moderator...");
-                llStateChange(inactive);
+        if (channel == configChannel) {
+            // Handle dialog responses
+            if (message == "DeactivateSpeaker") {
+                llOwnerSay("Deactivating AIT Speaker...");
+                isActive = 0; // Set inactive state
+                updateVisualState(); // Update visual appearance
+                state inactive;
             }
             else if (message == "status") {
-                llOwnerSay("Theater Moderator Status: ACTIVE");
-                llOwnerSay("Properties: " + charactername + " | " + model + " | " + audio_voice);
+                llOwnerSay("AIT Speaker Status: ACTIVE");
+                llOwnerSay("Properties: " + audio_voice + " | " + audio_model);
             }
-            else {
-                llOwnerSay("Unknown command. Available commands: deactivate, status");
+            else if (message == "Close") {
+                llOwnerSay("Dialog closed.");
             }
         }
         else if (channel == 0) {
             // Handle public channel messages when active
-            llOwnerSay("Moderator received message from " + name + ": " + message);
+            llOwnerSay("Speaker received message from " + name + ": " + message);
             
-            // Send owner's messages to generateAudio endpoint
-            string username = llParseString2List(name, ["@"], [])[0];
-            username = llStringTrim(username, 3);
-            sendToGenerateAudio(username, message);
+            // Only send to generateAudio when state is active
+            if (isActive == 1) {
+                // Send owner's messages to generateAudio endpoint
+                string username = llParseString2List(name, ["@"], [])[0];
+                username = llStringTrim(username, 3);
+                sendToGenerateAudio(username, message);
+            } else {
+                llOwnerSay("Speaker is not active, ignoring message");
+            }
         }
     }
 
@@ -529,11 +491,51 @@ state active
         }
     }
 
+    touch_start(integer total_number)
+    {
+        key toucher = llDetectedKey(0);
+        if (toucher == llGetOwner()) {
+            showDialog(toucher);
+        }
+    }
+
     // If changes are done to object inventory then reset the script.
     changed(integer a)
     {
         if(a & CHANGED_INVENTORY ) {
             llResetScript();
         }
+    }
+}
+
+// Function to update visual appearance based on state
+updateVisualState()
+{
+    if (isActive == 1) {
+        // Active state - bright and glowing
+        llSetColor(activeColor, ALL_SIDES);
+        llSetPrimitiveParams([PRIM_FULLBRIGHT, ALL_SIDES, TRUE]);
+    } else {
+        // Inactive state - dark and dim
+        llSetColor(inactiveColor, ALL_SIDES);
+        llSetPrimitiveParams([PRIM_FULLBRIGHT, ALL_SIDES, FALSE]);
+    }
+}
+
+// Function to show dialog based on current state
+showDialog(key user)
+{
+    if (isActive == 1) {
+        // Active state dialog
+        llDialog(user, 
+            "AIT Speaker - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\n",
+            ["DeactivateSpeaker", "Close"], 
+            configChannel);
+    } else {
+        // Inactive state dialog
+        llDialog(user, 
+            "AIT Speaker - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nPress activate to forward your chat messages on channel 0 to AIT audio stream.",
+            ["ActivateSpeaker", "Close"], 
+            configChannel);
     }
 }

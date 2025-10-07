@@ -1,6 +1,6 @@
 
 
-integer moderator_channel = 8;
+integer config_channel = 8;
 
 integer com_channel = 0;
 integer listener_public_channel;
@@ -197,11 +197,11 @@ post_message(string message_id, string username, string message) {
         \"audio_voice\": \""+ audio_voice + "\",
         \"audio_model\": \"" + audio_model + "\" 
     }";
-    llHTTPRequest("http://hg.hypergrid.net:7999/aiT/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], body);
+    llHTTPRequest("http://hg.hypergrid.net:7999/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], body);
 }
 
 call_response(string message_id) {
-    llHTTPRequest("http://hg.hypergrid.net:7999/aiT/getMessageResponse", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest("http://hg.hypergrid.net:7999/ait/getMessageResponse", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"join_key\": \""+join_key+"\",
         \"message_id\": \""+message_id+"\"
     }");
@@ -317,7 +317,7 @@ default
         whitelistNotecardQueryId = llGetNotecardLine(whitelistNotecardName, whitelistCurrentLine);
 
 
-        llListen(moderator_channel, "","","");
+        llListen(config_channel, "","","");
 
         queue_code = 0;
     }
@@ -391,9 +391,9 @@ default
                 // Validate parameters against API endpoints
                 validateAllParameters();
 
-                llOwnerSay("on channel " + moderator_channel + " to activate type the following: activate " + charactername);
-                llOwnerSay("on channel " + moderator_channel + " to activate only this actor, type the following: spotlight " + charactername);
-                llOwnerSay("on channel " + moderator_channel + " to activate all actors, type the following: activateAll");
+                llOwnerSay("on channel " + config_channel + " to activate type the following: activate " + charactername);
+                llOwnerSay("on channel " + config_channel + " to activate only this actor, type the following: spotlight " + charactername);
+                llOwnerSay("on channel " + config_channel + " to activate all actors, type the following: ActivateAllCharacters");
             }
         }
         if (query_id == systemNotecardQueryId)
@@ -492,7 +492,7 @@ default
                 queue_code += 1;
                 waitingForApprovalMessage = message;
                 
-                llOwnerSay(name + " sent message: " + message + " but is not in list of approved speakers, to approve the message, type command on channel " + moderator_channel + ": approve " + charactername + " " + queue_code );
+                llOwnerSay(name + " sent message: " + message + " but is not in list of approved speakers, to approve the message, type command on channel " + config_channel + ": approve " + charactername + " " + queue_code );
 
                 return;
             } else {
@@ -500,7 +500,7 @@ default
             }
             
         }
-        if (channel == moderator_channel) {
+        if (channel == config_channel) {
             string username = llParseString2List(name, ["@"], [])[0];
             username = llStringTrim(username, 3);
             if (llListFindList(whitelisted_users, [username]) == -1){
@@ -512,11 +512,16 @@ default
                 transmitMessage(waitingForApprovalUsername, waitingForApprovalMessage);
             }
 
-            string activateAllCommand = "activateAll";
-            if (message == activateAllCommand){
-                llOwnerSay(charactername + " has been activated using activateAll command");
+            string ActivateAllCharactersCommand = "ActivateAllCharacters";
+            if (message == ActivateAllCharactersCommand){
+                llOwnerSay(charactername + " has been activated using ActivateAllCharacters command");
                 listener_public_channel = llListen(0, "","","");
                 isActive = 1;
+            }
+            string DeactivateAllCharactersCommand = "DeactivateAllCharacters";
+            if (message == DeactivateAllCharactersCommand){
+                llOwnerSay(charactername + " has been deactivated using DeactivateAllCharacters command");
+                isActive = 0;
             }
             string activateAgentCommand = "activate " + charactername;
             if (message == activateAgentCommand){
@@ -640,8 +645,6 @@ default
             
             string trimmed_response = deleteUpToSubstring(response, "</think>");
             trimmed_response = llStringTrim(trimmed_response, STRING_TRIM);
-
-            
 
             list chunks = splitText(trimmed_response);
             integer i;

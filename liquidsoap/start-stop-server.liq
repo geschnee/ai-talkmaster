@@ -48,7 +48,7 @@ def create_stream(join_key) =
     generated_playlist = playlist("/generated-audio/active/#{join_key}", loop=false, reload=1, reload_mode="seconds", mode="normal", check_next=check)
 
     waiting_playlist = playlist("/fallback-audio/", mode="normal")
-    waiting_playlist = amplify(0.8, waiting_playlist)
+    waiting_playlist = amplify(0.6, waiting_playlist)
     waiting_safe = mksafe(waiting_playlist)
     stream_content = fallback(track_sensitive=false, [generated_playlist, waiting_safe])
     out = output.icecast(

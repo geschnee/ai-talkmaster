@@ -57,7 +57,7 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
 import mutagen
 from mutagen.easyid3 import EasyID3
 
-def save_metadata(filename: str, charactername: str, join_key: str):
+def save_metadata(filename: str, name: str, join_key: str):
     # Ensure the file has ID3 tags (some generated files don't)
 
     mp3 = MP3(filename)
@@ -71,7 +71,7 @@ def save_metadata(filename: str, charactername: str, join_key: str):
     # Use EasyID3 to set metadata
     tags = EasyID3(filename)
     tags["title"] = join_key
-    tags["artist"] = charactername
+    tags["artist"] = "AIT " + name
     tags["album"] = join_key
     tags["genre"] = "Speech"
     tags.save()
@@ -173,11 +173,11 @@ def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
     return ait_instance
 
 
-@app.post("/aiT/postMessage")
+@app.post("/ait/postMessage")
 @validate_chat_model_decorator
 @validate_audio_voice_decorator
 @validate_audio_model_decorator
-def postaiTMessage(request: PostMessageRequest):
+def postaitMessage(request: PostMessageRequest):
     try:
         data_json = request.model_dump()
         log(f'postMessage data: {data_json}')
@@ -192,7 +192,7 @@ def postaiTMessage(request: PostMessageRequest):
                 status_code=400, # TODO use a code, that the owner get messaged
                 content={
                     "message_id": request.message_id, 
-                    "error": f'Invalid message ID, already exists in aiT with key {request.join_key}'
+                    "error": f'Invalid message ID, already exists in ait with key {request.join_key}'
                 }
             )
         
@@ -225,7 +225,7 @@ def postaiTMessage(request: PostMessageRequest):
         
         ait_instance.set_audio_created_at(request.message_id, time.time())
         
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} aiTSendMessage: data: {request.message} response: {response_msg}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} aitSendMessage: data: {request.message} response: {response_msg}')
         
 
         return JSONResponse(
@@ -236,15 +236,15 @@ def postaiTMessage(request: PostMessageRequest):
             }
         )
     except Exception as e:
-        log(f'exception in /aiT/postMessage: {e}')
+        log(f'exception in /ait/postMessage: {e}')
         log(f'stack: {traceback.print_exc()}')
         return JSONResponse(
             status_code=500,
             content=f"Internal server error: {str(e)}"
         )
 
-@app.post("/aiT/getMessageResponse")
-def getaiTMessageResponse(request: MessageResponseRequest):
+@app.post("/ait/getMessageResponse")
+def getaitMessageResponse(request: MessageResponseRequest):
     try:
         join_key = request.join_key
 
@@ -275,7 +275,7 @@ def getaiTMessageResponse(request: MessageResponseRequest):
         )
         
     except Exception as e:
-        log(f'exception in /aiT/getMessageResponse: {e}')
+        log(f'exception in /ait/getMessageResponse: {e}')
         return JSONResponse(
             status_code=500,
             content=f"Internal server error: {str(e)}"
@@ -299,7 +299,7 @@ def stop_aitalkmaster(join_key: str):
         if join_key in audio_sequence_counters:
             del audio_sequence_counters[join_key]
 
-@app.post("/aiT/stopJoinkey")
+@app.post("/ait/stopJoinkey")
 def stopJoinkey(request: StopJoinkeyRequest):
     try:
         join_key = request.join_key
@@ -315,13 +315,13 @@ def stopJoinkey(request: StopJoinkeyRequest):
             content=f"{join_key} has been reset"
         )
     except Exception as e:
-        log(f'exception in /aiT/stopJoinkey: {e}')
+        log(f'exception in /ait/stopJoinkey: {e}')
         return JSONResponse(
             status_code=500,
             content=f"Internal server error: {str(e)}"
         )
 
-@app.post("/aiT/generateAudio")
+@app.post("/ait/generateAudio")
 @validate_audio_voice_decorator
 @validate_audio_model_decorator
 def generateAudio(request: GenerateAudioRequest):
@@ -367,7 +367,7 @@ def generateAudio(request: GenerateAudioRequest):
         )
         
     except Exception as e:
-        log(f'exception in /aiT/generateAudio: {e}')
+        log(f'exception in /ait/generateAudio: {e}')
         log(f'stack: {traceback.print_exc()}')
         return JSONResponse(
             status_code=500,

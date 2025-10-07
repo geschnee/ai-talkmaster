@@ -15,7 +15,7 @@
              might want to disable this. -->
         <!-- We set burst-on-connect to false (0) to reduce the latency.
              Testing showed a decrease in latency. -->
-        <burst-on-connect>0</burst-on-connect>
+        <burst-on-connect>1</burst-on-connect>
         <!-- same as burst-on-connect, but this allows for being more
              specific on how much to burst. Most people won't need to
              change from the default 64k. Applies to all mountpoints  -->

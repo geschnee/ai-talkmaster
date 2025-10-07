@@ -153,7 +153,7 @@ def generate_audio_stream(join_key: str, request: Request):
         return
 
 
-@app.get("/aiT/stream-audio/{join_key}")
+@app.get("/ait/stream-audio/{join_key}")
 def stream_audio(join_key: str, request: Request):
     """
     Stream audio files from the specific AitalkmasterInstance, playing each assistant message audio once.

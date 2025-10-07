@@ -184,18 +184,13 @@ class GenerateAudioRequest(BaseModel):
     audio_voice: Optional[str] = ""
     audio_model: Optional[str] = ""
 
-
 class ChatResponse(BaseModel):
     text_response: str = Field(description="character response")
 
-
 def send_telnet_command(command: str) -> bool:
-
-
     if config.liquidsoap_client == None:
         log(f"[-] No liquidsoap client config found, canceling telnet command '{command}'")
         return False
-
 
     """Send a telnet command to the liquidsoap server"""
     try:
@@ -221,24 +216,17 @@ def send_telnet_command(command: str) -> bool:
         log(f"[-] Error sending telnet command '{command}': {e}")
         return False
 
-
 def start_liquidsoap(stream_name: str) -> bool:
     """Start a liquidsoap stream via telnet command"""
-    
-
-    
     
     log(f"[+] Starting liquidsoap stream for '{stream_name}'")
     command = f"aitstream.start {stream_name}"
     success = send_telnet_command(command)
     
     return success
-        
-
 
 def stop_liquidsoap(stream_name: str) -> bool:
     """Stop a specific liquidsoap stream via telnet command"""
-    
     
     log(f"[-] Stopping liquidsoap stream for '{stream_name}'")
     command = f"aitstream.stop {stream_name}"
