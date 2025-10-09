@@ -1,12 +1,12 @@
 services:
-  # OllamaProxy FastAPI application
+    # OllamaProxy FastAPI application
   ollamaproxy:
     build:
       context: ../
       dockerfile: docker-hosting/aitalkmaster.Dockerfile
     container_name: ollamaproxy
     ports:
-      - "7000:7999"
+      - "7999:7999"
     networks:
       - streaming-network
     extra_hosts:
@@ -15,7 +15,7 @@ services:
       - ../volumes/generated-audio:/app/generated-audio
       - ../volumes/ollamaproxy-logs:/app/logs
       - ../openai_key.txt:/app/openai_key.txt:ro
-      - ../aitalkmaster-server/configs/docker-openai-openai.yml:/app/config.yml:ro
+      - ../aitalkmaster-server/configs/docker-ollama-kokoro.yml:/app/config.yml:ro
       - ../app_password.txt:/app/app_password.txt:ro
     environment:
       - PYTHONUNBUFFERED=1
@@ -50,7 +50,7 @@ services:
       dockerfile: docker-hosting/icecast.Dockerfile
     restart: unless-stopped
     ports:
-      - "7010:8000" 
+      - "8010:8000" 
     environment:
       - ICECAST_SOURCE_PASSWORD=srcpassword
       - ICECAST_RELAY_PASSWORD=password
@@ -61,7 +61,7 @@ services:
       - ../volumes/icecast-logs:/var/log/icecast2
     networks:
       - streaming-network
-
+  
 networks:
   streaming-network:
     driver: bridge

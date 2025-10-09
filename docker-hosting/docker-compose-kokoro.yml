@@ -1,5 +1,7 @@
 version: '3.8'
 
+# This docker compose file starts a kokoro audio server that is accessible just as if it was running on the host machine itself.
+
 services:
   kokoro:
     image: ghcr.io/remsky/kokoro-fastapi-cpu:latest

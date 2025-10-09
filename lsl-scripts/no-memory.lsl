@@ -1,6 +1,6 @@
 // script by Herzstein
 // concet by Art Blue aka Reiner Schneeberger 
-// version 0.1 2025-04-29
+
 
 
 integer com_channel = 0; // Change this to any channel of your choice.
@@ -11,6 +11,13 @@ string username ="";
 float reserveTime = 600.0;
 float pollFreq = 2.0;
 float stopwatch;
+
+string ait_endpoint = "http://hg.hypergrid.net:7999";
+
+// Validation variables
+key modelsValidationId;
+integer modelsValidated = 0;
+integer validationInProgress = 0;
 
 integer max_response_length = 16384;
 
@@ -151,23 +158,48 @@ finish_optionstring(){
 }
 
 call_oracle(string prompt, string username) {
+    // Check if model validation has completed and failed
+    if (validationInProgress == 0 && modelsValidated == 0) {
+        llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
+        return;
+    }
+    
+    // If validation is still in progress, wait
+    if (validationInProgress == 1) {
+        llSay(0, "Model validation is still in progress. Please wait...");
+        return;
+    }
+    
     string system_instructions = llReplaceSubString(system, "\"", "\\\"", 0);
     string prompt_filtered = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest("http://hg.hypergrid.net:7999/api/generate", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/generate/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"username\": \""+username+"\",
         \"prompt\": \""+prompt_filtered+"\",
         \"model\": \"" + model + "\",
-        \"system\": \"" + system_instructions + "\",
+        \"system_instructions\": \"" + system_instructions + "\",
         \"options\": " + optionstring +"
     }");
 }
 
 call_response(string prompt, string username) {
+    // Check if model validation has completed and failed
+    if (validationInProgress == 0 && modelsValidated == 0) {
+        llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
+        return;
+    }
+    
+    // If validation is still in progress, wait
+    if (validationInProgress == 1) {
+        llSay(0, "Model validation is still in progress. Please wait...");
+        return;
+    }
+    
     string prompt_filtered = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest("http://hg.hypergrid.net:7999/api/getResponse", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/generate/getResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"username\": \""+username+"\",
         \"prompt\": \""+prompt_filtered+"\",
         \"model\": \"" + model + "\",
+        \"system_instructions\": \"" + system_instructions + "\",
         \"options\": " + optionstring +"
     }");
 }
@@ -186,6 +218,43 @@ set_ready() {
 string str_replace(string src, string from, string to)
 {
     return llDumpList2String(llParseString2List(src, [from], []), to);
+}
+
+// Function to validate model against /models endpoint
+validateModel(string modelToValidate)
+{
+    if (validationInProgress) {
+        llOwnerSay("Validation already in progress, please wait...");
+        return;
+    }
+    
+    validationInProgress = 1;
+    llOwnerSay("Validating model: " + modelToValidate);
+    modelsValidationId = llHTTPRequest(ait_endpoint + "/models", 
+        [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
+}
+
+// Function to check if a value exists in a JSON array
+integer isValueInJsonArray(string jsonString, string value)
+{
+    // Simple check for the value in the JSON string
+    // This is a basic implementation - in a real scenario you'd want more robust JSON parsing
+    if (llSubStringIndex(jsonString, "\"" + value + "\"") != -1) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+// Function to validate all parameters after they are loaded
+validateAllParameters()
+{
+    if (model == "") {
+        llOwnerSay("Error: Model parameter is missing. Cannot validate.");
+        return;
+    }
+    
+    llOwnerSay("Starting parameter validation...");
+    validateModel(model);
 }
 
 default
@@ -292,6 +361,11 @@ default
                 system = entireContent;
                 
                 config_read=config_read + 1;
+                
+                // Validate parameters after both configs are loaded
+                if (config_read == 2) {
+                    validateAllParameters();
+                }
             }
         }
     }
@@ -331,6 +405,27 @@ default
 
     http_response(key request_id, integer status, list metadata, string body)
     {
+        // Handle validation responses
+        if (request_id == modelsValidationId) {
+            if (status == 200) {
+                llOwnerSay("Models validation response received");
+                string chatModels = llJsonGetValue(body, ["chat_models"]);
+                if (isValueInJsonArray(chatModels, model)) {
+                    llOwnerSay("✓ Model '" + model + "' is valid");
+                    modelsValidated = 1;
+                } else {
+                    llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
+                    modelsValidated = 0;
+                }
+                
+                validationInProgress = 0;
+            } else {
+                llOwnerSay("Error validating model: HTTP " + (string)status + " - " + body);
+                validationInProgress = 0;
+            }
+            return;
+        }
+        
         if(200 == status) {
             if (username == ""){
                 //llSay(0, "reset was called between request and response");

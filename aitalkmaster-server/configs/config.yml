@@ -4,6 +4,7 @@
 server:
   host: "0.0.0.0"
   port: 7999
+  log_file: "./logs/logfile.txt"
 
 # Ollama Configuration
 chat_client:
@@ -11,7 +12,7 @@ chat_client:
   key_file: "openai_key.txt"
   base_url: "http://localhost:11434"
   # valid_models: ["llama3.2", "mistral", "deepseek-r1"]
-  valid_models: ["gpt-4o-mini", "gpt-4o", ]
+  allowed_models: ["gpt-4o-mini", "gpt-4o", ]
 
 # TODO make the chat client URL be used everywhere (also when the mode is openai (meaning another provider should be usable))
 
@@ -24,8 +25,9 @@ audio_client:
   base_url: "http://localhost:8880/v1"  # is used when mode == "kokoro" -> Kokoro audio server
   default_voice: "alloy"
   default_model: "tts-1"
-  valid_voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse"]
-  valid_models: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "kokoro"]
+  allowed_voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse"]
+  allowed_models: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts", "kokoro"]
+
 
 
 liquidsoap_client:
@@ -40,4 +42,3 @@ icecast_client:
 # Aitalkmaster Configuration
 aitalkmaster:
   join_key_keep_alive_list: []
-  log_file: "./logs/logfile.txt"

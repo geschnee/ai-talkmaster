@@ -11,6 +11,8 @@ integer com_channel = 0;
 // State management
 integer isActive = 0; // 0 = inactive, 1 = active
 
+string ait_endpoint = "http://hg.hypergrid.net:7999";
+
 // Visual feedback colors
 vector inactiveColor = <0.2, 0.2, 0.2>; // Dark gray for inactive
 vector activeColor = <1.0, 1.0, 1.0>;   // Bright white for active
@@ -178,7 +180,7 @@ sendToGenerateAudio(string username, string message)
     }";
     
     llOwnerSay("Sending message to generateAudio: " + message);
-    llHTTPRequest("http://hg.hypergrid.net:7999/ait/generateAudio", 
+    llHTTPRequest(ait_endpoint + "/ait/generateAudio", 
         [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], 
         body);
 }
@@ -189,7 +191,7 @@ validateAudioParameters(string voiceToValidate, string audioModelToValidate)
 {
     validationInProgress = 1;
     llOwnerSay("Validating audio voice: " + voiceToValidate + " and audio model: " + audioModelToValidate);
-    voicesValidationId = llHTTPRequest("http://hg.hypergrid.net:7999/voices", 
+    voicesValidationId = llHTTPRequest(ait_endpoint + "/voices", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
 }
 

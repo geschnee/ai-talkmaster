@@ -1,5 +1,6 @@
 """
-Background monitoring thread for checking active aitalkmaster instances
+The methods in this file are used to monitor the icecast server and check if the aitalkmaster instances are being listened to.
+After 30 days of inactivity, the aitalkmaster stream is removed.
 """
 
 import threading
@@ -7,11 +8,10 @@ import time
 import xml.etree.ElementTree as ET
 import requests
 
-
 from code.aitalkmaster_utils import stop_liquidsoap
 from code.shared import config, log
 from code.config import IcecastClientConfig
-from code.aitalkmaster_views import stop_aitalkmaster
+from code.aitalkmaster_views import reset_aitalkmaster
 
 def get_mounts(IcecastClientConfig: IcecastClientConfig) -> list[str]:
     """Get all mount points from Icecast XML response"""
@@ -77,9 +77,6 @@ def background_aitalkmaster_monitor():
    
     from code.aitalkmaster_views import active_aitalkmaster_instances
 
-    if config.icecast_client == None:
-        log("No icecast client config found, cancel background aitalkmaster monitor")
-        return
     
     while True:
         try:
@@ -128,7 +125,7 @@ def background_aitalkmaster_monitor():
             for join_key in ait_instances_to_remove:
                 if join_key in active_aitalkmaster_instances:
                     stop_liquidsoap(join_key)
-                    stop_aitalkmaster(join_key)
+                    reset_aitalkmaster(join_key)
                     del active_aitalkmaster_instances[join_key]
                     log(f"Removed inactive ait instance: {join_key}")
 

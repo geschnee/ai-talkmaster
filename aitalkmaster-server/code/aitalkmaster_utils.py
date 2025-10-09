@@ -1,7 +1,4 @@
-
-
 from typing import Optional
-from pydantic import BaseModel, Field
 from datetime import datetime
 from pathlib import Path
 from mutagen.mp3 import MP3
@@ -50,19 +47,6 @@ class AssistantResponse:
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = time.time()
-
-class PostMessageRequest(BaseModel):
-    join_key: str
-    username: str # name of the SL user that said the message (can also be an actor)
-    message: str
-    model: str
-    system_instructions: str
-    charactername: str
-    message_id: str
-    audio_voice: Optional[str] = ""
-    options: Optional[dict] = {}
-    audio_description: Optional[str] = ""
-    audio_model: Optional[str] = ""
 
 class AitalkmasterInstance:
     """Simplified AitalkmasterInstance class using message classes for better readability"""
@@ -135,22 +119,6 @@ class AitalkmasterInstance:
         
         return dialog
 
-    def get_responses(self):
-        """Get assistant responses for backward compatibility"""
-        responses = []
-        for assistant_resp in self.assistant_responses:
-            response_dict: dict = {
-                "role": "assistant",
-                "content": assistant_resp.response,
-                "name": assistant_resp.name,
-                "response_id": assistant_resp.response_id,
-                "filename": assistant_resp.filename
-            }
-            if assistant_resp.audio_created_at is not None:
-                response_dict["audio_created_at"] = assistant_resp.audio_created_at
-            responses.append(response_dict)
-        return responses
-
     def set_audio_created_at(self, response_id: str, timestamp: float):
         """Set the audio creation timestamp for a specific response"""
         for assistant_resp in self.assistant_responses:
@@ -162,30 +130,12 @@ class AitalkmasterInstance:
         return str(self.getDialog())
 
 def remove_name(message: str, charactername: str):
-
     if message.lower().startswith(f"{charactername.lower()}: "):
         message = message[len(charactername)+2:]
+    elif message.lower().startswith(f"{charactername.lower()}:"):
+        message = message[len(charactername)+1:]
 
     return message
-
-class MessageResponseRequest(BaseModel):
-    join_key: str
-    message_id: str
-
-class StopJoinkeyRequest(BaseModel):
-    join_key: str
-
-class GenerateAudioRequest(BaseModel):
-    join_key: str
-    username: str
-    message: str
-    message_id: str
-    audio_description: Optional[str] = ""
-    audio_voice: Optional[str] = ""
-    audio_model: Optional[str] = ""
-
-class ChatResponse(BaseModel):
-    text_response: str = Field(description="character response")
 
 def send_telnet_command(command: str) -> bool:
     if config.liquidsoap_client == None:
@@ -198,10 +148,8 @@ def send_telnet_command(command: str) -> bool:
             sock.settimeout(5)  # 5 second timeout
             sock.connect((config.liquidsoap_client.host, config.liquidsoap_client.telnet_port))
             
-            # Send the command with newline
             sock.send(f"{command}\n".encode('utf-8'))
             
-            # Read response (optional, but good for debugging)
             response = sock.recv(1024).decode('utf-8', errors='ignore')
             log(f"[*] Telnet command '{command}' sent, response: {response.strip()}")
             return True
@@ -233,4 +181,3 @@ def stop_liquidsoap(stream_name: str) -> bool:
     success = send_telnet_command(command)
     
     return success
-        

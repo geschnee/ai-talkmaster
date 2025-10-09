@@ -1,0 +1,31 @@
+services:
+    # OllamaProxy FastAPI application
+  ollamaproxy:
+    build:
+      context: ../
+      dockerfile: docker-hosting/aitalkmaster.Dockerfile
+    container_name: ollamaproxy
+    ports:
+      - "7999:7999"
+    networks:
+      - streaming-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../volumes/ollamaproxy-logs:/app/logs
+      - ../openai_key.txt:/app/openai_key.txt:ro
+      - ../aitalkmaster-server/configs/docker-ollama-noAudio.yml:/app/config.yml:ro
+      - ../app_password.txt:/app/app_password.txt:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7999/statusAitalkmaster"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+  
+networks:
+  streaming-network:
+    driver: bridge

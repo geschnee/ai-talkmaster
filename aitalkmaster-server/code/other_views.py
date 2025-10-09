@@ -4,8 +4,7 @@ from fastapi.responses import JSONResponse
 from code.shared import app, config
 from code.aitalkmaster_utils import log
 
-
-@app.get("/statusOllamaProxy")
+@app.get("/statusAitalkmaster")
 def status(request: Request):
     return JSONResponse( 
         status_code=200,
@@ -13,36 +12,19 @@ def status(request: Request):
 
 @app.get("/chatmodels")
 def get_available_models():
-    """
-    Returns the list of valid chat models from the configuration.
-    Only shows models that are explicitly configured as valid_models.
-    """
+    
     try:
         # Get valid models from config
-        valid_models = config.chat_client.valid_models
-        
-        if not valid_models:
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "chat_client_mode": config.chat_client.mode,
-                    "chat_models": [],
-                    "count": 0,
-                    "message": "No valid models configured"
-                }
-            )
-        
-        log(f'Retrieved {len(valid_models)} configured models for {config.chat_client.mode}')
+        allowed_models = config.chat_client.allowed_models
         
         return JSONResponse(
             status_code=200,
             content={
                 "chat_client_mode": config.chat_client.mode,
-                "chat_models": valid_models,
-                "count": len(valid_models)
+                "chat_models": allowed_models,
+                "count": len(allowed_models)
             }
         )
-        
     except Exception as e:
         log(f'Exception in /models: {e}')
         return JSONResponse(
@@ -50,16 +32,19 @@ def get_available_models():
             content={"error": f"Internal server error: {str(e)}"}
         )
 
-@app.get("/voices")
+@app.get("/audio_models")
 def get_available_voices():
-    """
-    Returns the list of valid audio models and voices from the configuration.
-    Only shows models and voices that are explicitly configured as valid.
-    """
     try:
         # Get configured voices and models from config
-        voices = config.audio_client.valid_voices
-        models = config.audio_client.valid_models
+
+        if config.audio_client is None:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Audio client is not configured"}
+            )
+
+        voices = config.audio_client.allowed_voices
+        models = config.audio_client.allowed_models
         
         log(f'Retrieved {len(voices)} configured voices and {len(models)} configured models for {config.audio_client.mode}')
         
@@ -69,44 +54,12 @@ def get_available_voices():
                 "audio_client_mode": config.audio_client.mode,
                 "default_voice": config.audio_client.default_voice,
                 "default_model": config.audio_client.default_model,
-                "valid_voices": voices,
+                "allowed_voices": voices,
                 "audio_models": models,
-                "voice_count": len(voices),
-                "model_count": len(models)
             }
         )
-        
     except Exception as e:
         log(f'Exception in /voices: {e}')
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Internal server error: {str(e)}"}
-        )
-
-@app.get("/audiomodels")
-def get_available_audio_models():
-    """
-    Returns the list of valid audio models from the configuration.
-    Only shows models that are explicitly configured as valid_models.
-    """
-    try:
-        # Get configured audio models from config
-        audio_models = config.audio_client.valid_models
-        
-        log(f'Retrieved {len(audio_models)} configured audio models for {config.audio_client.mode}')
-        
-        return JSONResponse(
-            status_code=200,
-            content={
-                "audio_client_mode": config.audio_client.mode,
-                "default_model": config.audio_client.default_model,
-                "audio_models": audio_models,
-                "model_count": len(audio_models)
-            }
-        )
-        
-    except Exception as e:
-        log(f'Exception in /audiomodels: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": f"Internal server error: {str(e)}"}

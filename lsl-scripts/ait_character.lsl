@@ -11,6 +11,8 @@ float reserveTime = 180.0;
 float pollFreq = 2.0;
 float stopwatch;
 
+string ait_endpoint = "http://hg.hypergrid.net:7999";
+
 
 float conversation_time=0;
 integer conversation_message_id= 0;
@@ -197,11 +199,11 @@ post_message(string message_id, string username, string message) {
         \"audio_voice\": \""+ audio_voice + "\",
         \"audio_model\": \"" + audio_model + "\" 
     }";
-    llHTTPRequest("http://hg.hypergrid.net:7999/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], body);
+    llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], body);
 }
 
 call_response(string message_id) {
-    llHTTPRequest("http://hg.hypergrid.net:7999/ait/getMessageResponse", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"join_key\": \""+join_key+"\",
         \"message_id\": \""+message_id+"\"
     }");
@@ -241,17 +243,16 @@ validateModel(string modelToValidate)
     
     validationInProgress = 1;
     llOwnerSay("Validating model: " + modelToValidate);
-    modelsValidationId = llHTTPRequest("http://hg.hypergrid.net:7999/models", 
+    modelsValidationId = llHTTPRequest(ait_endpoint + "/models", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
 }
 
 // Function to validate audio parameters against /voices endpoint
 validateAudioParameters(string voiceToValidate, string audioModelToValidate)
 {
-    
     validationInProgress = 1;
     llOwnerSay("Validating audio voice: " + voiceToValidate + " and audio model: " + audioModelToValidate);
-    voicesValidationId = llHTTPRequest("http://hg.hypergrid.net:7999/voices", 
+    voicesValidationId = llHTTPRequest(ait_endpoint + "/audio_models", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
 }
 
@@ -388,7 +389,7 @@ default
                 finish_optionstring();
                 llOwnerSay("optionstring: " + optionstring);
 
-                // Validate parameters against API endpoints
+                
                 validateAllParameters();
 
                 llOwnerSay("on channel " + config_channel + " to activate type the following: activate " + charactername);
@@ -590,7 +591,7 @@ default
         if (request_id == voicesValidationId) {
             if (status == 200) {
                 llOwnerSay("Voices validation response received");
-                string validVoices = llJsonGetValue(body, ["valid_voices"]);
+                string validVoices = llJsonGetValue(body, ["allowed_voices"]);
                 string audioModels = llJsonGetValue(body, ["audio_models"]);
                 
                 integer voiceValid = isValueInJsonArray(validVoices, audio_voice);

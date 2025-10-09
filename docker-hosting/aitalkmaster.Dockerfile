@@ -43,5 +43,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:7999/statusOllamaProxy || exit 1
 
 # Run the application
-CMD ["python", "OllamaProxy.py"]
+CMD ["python", "ai_talkmaster.py"]
 #CMD ["ls", "-la"]

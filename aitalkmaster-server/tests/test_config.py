@@ -30,7 +30,6 @@ def test_config_values(config):
     try:
         # Test server config
         print(f"   Server: {config.server.host}:{config.server.port}")
-        print(f"   PID file: {config.server.pid_file}")
         
         # Test Ollama config
         print(f"   Ollama URL: {config.ollama.url}")

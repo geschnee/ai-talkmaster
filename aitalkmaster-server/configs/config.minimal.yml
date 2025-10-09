@@ -4,13 +4,15 @@
 server:
   host: "0.0.0.0"
   port: 7999
+  log_file: "./logs/logfile.txt"
 
 # Chat Client Configuration
 chat_client:
   mode: "openai"  # "openai" or "ollama"
   key_file: "openai_key.txt"
   base_url: "http://localhost:11434"
-  valid_models: ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
+  default_model: "gpt-4o-mini"
+  allowed_models: ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
 # Audio Client Configuration
 audio_client:
@@ -19,13 +21,14 @@ audio_client:
   base_url: "http://localhost:8880/v1"
   default_voice: "alloy"
   default_model: "tts-1"
-  valid_voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse"]
-  valid_models: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]
+  allowed_voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse"]
+  allowed_models: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]
 
 # Note: liquidsoap_client and icecast_client sections are omitted
 # This allows the system to run without streaming capabilities
 
+
+
 # Aitalkmaster Configuration
 aitalkmaster:
   join_key_keep_alive_list: []
-  log_file: "./logs/logfile.txt"

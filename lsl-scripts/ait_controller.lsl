@@ -11,6 +11,8 @@ string join_key;
 string simulatorHostname;
 string regionName;
 
+string ait_endpoint = "http://hg.hypergrid.net:7999";
+
 string joinkeyNotecardName = "join_key";
 key joinkeyNotecardQueryId;
 
@@ -24,7 +26,7 @@ integer whitelistCurrentLine=0;
 integer max_response_length = 16384;
 
 reset_theater_play(string join_key) {
-    llHTTPRequest("http://hg.hypergrid.net:7999/ait/stopJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/ait/stopJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"join_key\": \""+join_key+"\"
     }");
 }

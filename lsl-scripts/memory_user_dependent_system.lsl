@@ -12,6 +12,12 @@ float reserveTime = 180.0;
 float pollFreq = 2.0;
 float stopwatch;
 
+string ait_endpoint = "http://hg.hypergrid.net:7999";
+
+// Validation variables
+key modelsValidationId;
+integer modelsValidated = 0;
+integer validationInProgress = 0;
 
 string conversation_key;
 float conversation_time=0;
@@ -166,6 +172,18 @@ string deleteUpToSubstring(string input, string substring)
 }
 
 start_oracle(string username) {
+    // Check if model validation has completed and failed
+    if (validationInProgress == 0 && modelsValidated == 0) {
+        llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
+        return;
+    }
+    
+    // If validation is still in progress, wait
+    if (validationInProgress == 1) {
+        llSay(0, "Model validation is still in progress. Please wait...");
+        return;
+    }
+    
     string instructions = "";
     if (userSystem == ""){
         instructions=defaultSystem;
@@ -174,7 +192,7 @@ start_oracle(string username) {
     }
     instructions = llReplaceSubString(instructions, "\"", "\\\"", 0);
 
-    llHTTPRequest("http://hg.hypergrid.net:7999/api/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"username\": \""+username+"\",
         \"simulatorHostname\": \""+simulatorHostname+"\",
         \"regionName\": \""+regionName+"\",
@@ -185,8 +203,20 @@ start_oracle(string username) {
 }
 
 call_oracle(string conversation_key, integer message_id, string prompt) {
+    // Check if model validation has completed and failed
+    if (validationInProgress == 0 && modelsValidated == 0) {
+        llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
+        return;
+    }
+    
+    // If validation is still in progress, wait
+    if (validationInProgress == 1) {
+        llSay(0, "Model validation is still in progress. Please wait...");
+        return;
+    }
+    
     string prompt_filtered = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest("http://hg.hypergrid.net:7999/api/conversation/sendMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/conversation/sendMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"conversation_key\": \""+conversation_key+"\",
         \"prompt\": \""+prompt_filtered+"\",
         \"simulatorHostname\": \""+simulatorHostname+"\",
@@ -196,7 +226,7 @@ call_oracle(string conversation_key, integer message_id, string prompt) {
 }
 
 call_response(string conversation_key, integer message_id) {
-    llHTTPRequest("http://hg.hypergrid.net:7999/api/conversation/getMessageResponse", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"conversation_key\": \""+conversation_key+"\",
         \"simulatorHostname\": \""+simulatorHostname+"\",
         \"regionName\": \""+regionName+"\",
@@ -219,6 +249,43 @@ set_ready() {
 string str_replace(string src, string from, string to)
 {
     return llDumpList2String(llParseString2List(src, [from], []), to);
+}
+
+// Function to validate model against /models endpoint
+validateModel(string modelToValidate)
+{
+    if (validationInProgress) {
+        llOwnerSay("Validation already in progress, please wait...");
+        return;
+    }
+    
+    validationInProgress = 1;
+    llOwnerSay("Validating model: " + modelToValidate);
+    modelsValidationId = llHTTPRequest(ait_endpoint + "/models", 
+        [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
+}
+
+// Function to check if a value exists in a JSON array
+integer isValueInJsonArray(string jsonString, string value)
+{
+    // Simple check for the value in the JSON string
+    // This is a basic implementation - in a real scenario you'd want more robust JSON parsing
+    if (llSubStringIndex(jsonString, "\"" + value + "\"") != -1) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+// Function to validate all parameters after they are loaded
+validateAllParameters()
+{
+    if (model == "") {
+        llOwnerSay("Error: Model parameter is missing. Cannot validate.");
+        return;
+    }
+    
+    llOwnerSay("Starting parameter validation...");
+    validateModel(model);
 }
 
 default
@@ -325,6 +392,11 @@ default
                 defaultSystem= entireContent;
                 
                 config_read=config_read + 1;
+                
+                // Validate parameters after both configs are loaded
+                if (config_read == 2) {
+                    validateAllParameters();
+                }
             }
         }
         if (query_id == userSystemNotecardQueryId)
@@ -422,6 +494,27 @@ default
 
     http_response(key request_id, integer status, list metadata, string body)
     {
+        // Handle validation responses
+        if (request_id == modelsValidationId) {
+            if (status == 200) {
+                llOwnerSay("Models validation response received");
+                string chatModels = llJsonGetValue(body, ["chat_models"]);
+                if (isValueInJsonArray(chatModels, model)) {
+                    llOwnerSay("✓ Model '" + model + "' is valid");
+                    modelsValidated = 1;
+                } else {
+                    llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
+                    modelsValidated = 0;
+                }
+                
+                validationInProgress = 0;
+            } else {
+                llOwnerSay("Error validating model: HTTP " + (string)status + " - " + body);
+                validationInProgress = 0;
+            }
+            return;
+        }
+        
         if(200 == status) {
             if (username == ""){
                 //llSay(0, "reset was called between request and response");

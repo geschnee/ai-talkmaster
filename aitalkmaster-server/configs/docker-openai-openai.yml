@@ -4,13 +4,15 @@
 server:
   host: "0.0.0.0"
   port: 7999
+  log_file: "./logs/logfile.txt"
 
 # Ollama Configuration
 chat_client:
   mode: "openai"
   key_file: "openai_key.txt"
   base_url: "http://host.docker.internal:11434"  # Connect to host machine's Ollama
-  valid_models: ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
+  default_model: "gpt-4o-mini"
+  allowed_models: ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
 
 # OpenAI Configuration
 audio_client:
@@ -19,8 +21,8 @@ audio_client:
   base_url: "http://host.docker.internal:8880/v1"  # Connect to host machine's Kokoro
   default_voice: "alloy"
   default_model: "tts-1"
-  valid_voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse"]
-  valid_models: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]
+  allowed_voices: ["alloy", "ash", "ballad", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer", "verse"]
+  allowed_models: ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]
 
 liquidsoap_client:
   host: "liquidsoap"
@@ -31,7 +33,7 @@ icecast_client:
   port: 8000
   admin_password: "password"
 
+
 # Aitalkmaster Configuration
 aitalkmaster:
   join_key_keep_alive_list: []
-  log_file: "./logs/logfile.txt"

@@ -16,14 +16,17 @@ log(f'config: {config.get_config_summary()}')
 
 # Import views after app is created
 import code.aitalkmaster_views
-import code.aitalkmaster_native_stream_views
-import code.one_on_one_conversation_views
-import code.email_views
+import code.conversation_views
+import code.generate_views
 import code.other_views
 
 # Start background monitoring thread
-from code.background_monitor import start_background_monitor
-start_background_monitor()
+
+if config.icecast_client is not None:
+    from code.icecast_monitor import start_background_monitor
+    start_background_monitor()
+else:
+    log("Icecast client is not configured, so background monitoring thread will not be started")
 
 def shutdown_handler():
     """Handle server shutdown gracefully"""
@@ -32,12 +35,13 @@ def shutdown_handler():
     try:
         # Stop all active liquidsoap streams
         from code.aitalkmaster_utils import stop_liquidsoap
-        from code.aitalkmaster_views import active_theater_plays, stop_aitstream
+        from code.aitalkmaster_views import active_aitalkmaster_instances, reset_aitalkmaster
         
-        for join_key in list(active_theater_plays.keys()):
+        for join_key in list(active_aitalkmaster_instances.keys()):
             log(f"Stopping stream for join_key: {join_key}")
-            stop_liquidsoap(join_key)
-            stop_aitstream(join_key)
+            if config.liquidsoap_client is not None:
+                stop_liquidsoap(join_key)
+            reset_aitalkmaster(join_key)
         
         log("All streams stopped successfully")
         
