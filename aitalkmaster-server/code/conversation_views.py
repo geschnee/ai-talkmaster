@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from code.shared import app, config
 from code.validation_decorators import validate_chat_model_decorator
 from code.aitalkmaster_utils import log
-from code.request_models import ConversationStartRequest, ConversationGetMessageResponseRequest, ConversationSendMessageRequest
+from code.request_models import ConversationStartRequest, ConversationGetMessageResponseRequest, ConversationPostMessageRequest
 from code.openai_response import CharacterResponse
 from code.config import ChatClientMode
 
@@ -209,8 +209,8 @@ def get_response_openai_conversation(he: HistoryElement) -> str:
 
     return response.output_parsed.text_response # type: ignore
 
-@app.post("/conversation/sendMessage")
-async def conversationSendMessage(request: ConversationSendMessageRequest):
+@app.post("/conversation/postMessage")
+async def conversationPostMessage(request: ConversationPostMessageRequest):
     try:
         historyElement = getHistoryElement(conversation_key=request.conversation_key)
         if historyElement == None:
@@ -239,7 +239,7 @@ async def conversationSendMessage(request: ConversationSendMessageRequest):
 
         historyElement.addResponse(response_msg, request.message_id)
 
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} memorySendMessage: username: {historyElement.username} data:{request.model_dump()} historyElement:{historyElement}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} conversation/postMessage: username: {historyElement.username} data:{request.model_dump()} historyElement:{historyElement}')
         
         return JSONResponse( 
             status_code=200,
@@ -250,5 +250,5 @@ async def conversationSendMessage(request: ConversationSendMessageRequest):
         log(f"Exception {e}")
         return JSONResponse(
             status_code=500,
-            content=f"Internal server error in sendMessage: {e}"
+            content=f"Internal server error in postMessage: {e}"
         )

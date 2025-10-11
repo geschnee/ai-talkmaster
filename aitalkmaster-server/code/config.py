@@ -31,23 +31,23 @@ class AudioClientMode(Enum):
 class ServerConfig:
     """Server configuration settings"""
     host: str = "0.0.0.0"
-    port: int = 7999
+    port: int = 6000
     log_file: str = "logfile.txt"
 
 
 @dataclass
 class ChatClientConfig:
     mode: ChatClientMode
-    key_file: str = "openai_key.txt"
-    base_url: str = "http://localhost:11434"
+    key_file: str = ""
+    base_url: str = ""
     default_model: str = "llama3.2"
     allowed_models: list = Field(default_factory=list)
 
 @dataclass
 class AudioClientConfig:
     mode: AudioClientMode
-    key_file: str = "openai_key.txt"
-    base_url: str = "http://localhost:8880/v1"
+    key_file: str = ""
+    base_url: str = ""
     default_voice: str = "alloy"
     default_model: str = "tts-1"
     allowed_voices: list = Field(default_factory=list)
@@ -91,7 +91,7 @@ class Config:
         
         # Client instances storage
         self._ollama_chat_client: Optional[Any] = None
-        self._ollama_audio_client: Optional[Any] = None
+        self._opensource_audio_client: Optional[Any] = None
         self._openai_chat_client: Optional[Any] = None
         self._openai_audio_client: Optional[Any] = None
         
@@ -316,20 +316,15 @@ class Config:
             self._ollama_chat_client = Client(host=self.chat_client.base_url)
         return self._ollama_chat_client
     
-    def get_or_create_ollama_audio_client(self) -> OpenAI:
-        """
-        Get or create Ollama audio client instance (for Kokoro)
+    def get_or_create_opensource_audio_client(self) -> OpenAI:
         
-        Returns:
-            OpenAI Client instance configured for Kokoro audio server
-        """
-        if self._ollama_audio_client is None:
+        if self._opensource_audio_client is None:
             from openai import OpenAI
-            self._ollama_audio_client = OpenAI(
+            self._opensource_audio_client = OpenAI(
                 base_url=self.audio_client.base_url, 
                 api_key="kokoro"
             )
-        return self._ollama_audio_client
+        return self._opensource_audio_client
     
     def get_or_create_openai_chat_client(self) -> OpenAI:
         """
@@ -340,7 +335,10 @@ class Config:
         """
         if self._openai_chat_client is None:
             from openai import OpenAI
-            self._openai_chat_client = OpenAI(api_key=self.get_openai_key_from_file(self.chat_client.key_file))
+            if self.chat_client.base_url == "":
+                self._openai_chat_client = OpenAI(api_key=self.get_openai_key_from_file(self.chat_client.key_file))
+            else:
+                self._openai_chat_client = OpenAI(base_url=self.chat_client.base_url, api_key=self.get_openai_key_from_file(self.chat_client.key_file))
 
         return self._openai_chat_client
     
@@ -376,6 +374,9 @@ class Config:
                 
         elif self.chat_client.mode == ChatClientMode.OLLAMA:
             try:
+                if self.chat_client.base_url == "":
+                    raise ConfigurationValidationError("Base URL for chat client with mode ollama is not set")
+
                 response = requests.get(f"{self.chat_client.base_url}/api/tags", timeout=10)
                 response.raise_for_status()
                 jsondata = response.json()
@@ -446,6 +447,10 @@ class Config:
             available_models = [model.id for model in openai_models.data]
         elif self.audio_client.mode == AudioClientMode.KOKORO:
             # For Kokoro, we need to check the server
+
+            if self.audio_client.base_url == "":
+                raise ConfigurationValidationError("Base URL for audio client with mode kokoro is not set")
+
             try:
                 # Try to get available models from Kokoro server
                 response = requests.get(f"{self.audio_client.base_url}/models", timeout=10)
@@ -739,7 +744,7 @@ class Config:
         """Reload configuration from file"""
         # Clear client instances to force recreation with new config
         self._ollama_chat_client = None
-        self._ollama_audio_client = None
+        self._opensource_audio_client = None
         self._openai_chat_client = None
         self._openai_audio_client = None
         

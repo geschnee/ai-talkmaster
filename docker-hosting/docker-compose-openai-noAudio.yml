@@ -5,15 +5,16 @@ services:
       dockerfile: docker-hosting/aitalkmaster.Dockerfile
     container_name: aitalkmaster
     ports:
-      - "6000:6000"
+      - "7000:6000"
     networks:
       - streaming-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
+      - ../volumes/generated-audio:/app/generated-audio
       - ../volumes/aitalkmaster-logs:/app/logs
       - ../openai_key.txt:/app/openai_key.txt:ro
-      - ../aitalkmaster-server/configs/docker-ollama-noAudio.yml:/app/config.yml:ro
+      - ../aitalkmaster-server/configs/docker-openai-noAudio.yml:/app/config.yml:ro
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
@@ -23,6 +24,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+  
   
 networks:
   streaming-network:

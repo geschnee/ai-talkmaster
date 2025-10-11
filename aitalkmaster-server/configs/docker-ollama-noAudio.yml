@@ -3,17 +3,15 @@
 # Server Configuration
 server:
   host: "0.0.0.0"
-  port: 7999
+  port: 6000
   log_file: "./logs/logfile.txt"
 
 # Ollama Configuration
 chat_client:
   mode: "ollama"
-  base_url: "http://host.docker.internal:11434"  # Connect to host machine's Ollama
+  base_url: "http://host.docker.internal:11433"  # Connect to host machine's Ollama
   default_model: "mistral:latest"
-  allowed_models: ["mistral:latest", "llama3.2:latest", "mistral", "llama3.2"]
-
-
+  allowed_models: ["mistral:latest", "llama3.2:latest", "mistral", "llama3.2", "deepseek-r1", "deepseak"]
 
 
 # Aitalkmaster Configuration

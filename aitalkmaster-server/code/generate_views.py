@@ -5,7 +5,7 @@ from datetime import datetime
 from code.shared import app, config
 from code.validation_decorators import validate_chat_model_decorator
 from code.aitalkmaster_utils import log
-from code.request_models import GenerateGetResponseRequest, GenerateRequest
+from code.request_models import GenerateGetMessageResponseRequest, GenerateRequest
 from code.config import ChatClientMode
 
 
@@ -17,8 +17,8 @@ def getKey(username: str, model: str, prompt: str, system_instructions: str, opt
     key = f'{username}:{model}:{prompt}:{system_instructions}:{optionstring}'
     return key
 
-@app.get("/generate/getResponse")
-async def getResponse(request: GenerateGetResponseRequest):
+@app.get("/generate/getMessageResponse")
+async def generateGetMessageResponse(request: GenerateGetMessageResponseRequest):
     try:
 
         key = getKey(request.username, request.model, request.prompt, request.system_instructions, str(request.options))
@@ -85,7 +85,7 @@ async def generate(request: GenerateRequest):
         while len(response_queue)>=MAX_CHATS_NO_HISTORY:
             response_queue.pop()
 
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} noMemorySendMessage: data:{request.model_dump()} response:{response_msg}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generate/postMessage: data:{request.model_dump()} response:{response_msg}')
         
         return JSONResponse( 
             status_code=200,

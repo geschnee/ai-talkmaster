@@ -2,11 +2,9 @@
 // concet by Art Blue aka Reiner Schneeberger 
 // version 0.1 2025-04-29
 
-integer config_channel = 12345;
 
 integer com_channel = 0; // Change this to any channel of your choice.
-integer user_listener;
-integer config_listener;
+integer listener;
 string prompt;
 key user=NULL_KEY;
 string username ="";
@@ -16,10 +14,6 @@ float stopwatch;
 
 string ait_endpoint = "http://hg.hypergrid.net:7999";
 
-// Validation variables
-key modelsValidationId;
-integer modelsValidated = 0;
-integer validationInProgress = 0;
 
 string conversation_key;
 float conversation_time=0;
@@ -36,14 +30,32 @@ integer MAX_LENGTH = 1024;    // Maximum string length in LSL
 string simulatorHostname;
 string regionName;
 
+// Validation variables
+key modelsValidationId;
+integer modelsValidated = 0;
+integer validationInProgress = 0;
 
-integer configs_loaded;
-key config_sender=NULL_KEY;
+// Read Entire Notecard as Single String
+string parametersNotecardName = "llm-parameters";
+string systemNotecardName = "llm-system"; 
+key parametersNotecardQueryId;
+key systemNotecardQueryId;
+integer parametersCurrentLine = 0;
+integer systemCurrentLine = 0;
+list systemNotecardLines = [];
+
+integer config_read=0;
+
 string agentName;
 string model;
 string system;
 
 string optionstring;
+list optionStringParts=[];
+
+list optionParameters = [
+    "num_ctx", "repeat_last_n","repeat_penalty","temperature","seed","stop","num_predict","top_k","top_p","min_p"
+];
 
 
 // Function to split text into chunks
@@ -121,6 +133,24 @@ list splitText(string text)
     return chunks;
 }
 
+start_optionstring() {
+    optionstring = "{";
+    optionStringParts = [];
+}
+
+add_option(string optionname, string value){
+    if (optionname == "stop"){
+        optionStringParts = optionStringParts + ["\"stop\": [\"" + value + "\"]"];
+    } else {
+        optionStringParts = optionStringParts + ["\""+optionname+"\": " + value];
+    }
+}
+
+finish_optionstring(){
+    string joins = llDumpList2String(optionStringParts, ", ");
+    optionstring = "{ " + joins +" }";
+}
+
 string deleteUpToSubstring(string input, string substring)
 {
     integer position = llSubStringIndex(input, substring);
@@ -129,88 +159,6 @@ string deleteUpToSubstring(string input, string substring)
         return input;
     
     return llDeleteSubString(input, 0, position + llStringLength(substring) - 1);
-}
-
-start_oracle(string username) {
-    // Check if model validation has completed and failed
-    if (validationInProgress == 0 && modelsValidated == 0) {
-        llSay(0, "Model '" + model + "' is not available on the server. Please check the configuration.");
-        return;
-    }
-    
-    // If validation is still in progress, wait
-    if (validationInProgress == 1) {
-        llSay(0, "Model validation is still in progress. Please wait...");
-        return;
-    }
-    
-    string system_filtered = llReplaceSubString(system, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"username\": \""+username+"\",
-        \"simulatorHostname\": \""+simulatorHostname+"\",
-        \"regionName\": \""+regionName+"\",
-        \"model\": \"" + model + "\",
-        \"system\": \"" + system_filtered +"\",
-        \"options\": " + optionstring +"
-    }");
-}
-
-call_oracle(string conversation_key, integer message_id, string prompt) {
-    // Check if model validation has completed and failed
-    if (validationInProgress == 0 && modelsValidated == 0) {
-        llSay(0, "Model '" + model + "' is not available on the server. Please check the configuration.");
-        return;
-    }
-    
-    // If validation is still in progress, wait
-    if (validationInProgress == 1) {
-        llSay(0, "Model validation is still in progress. Please wait...");
-        return;
-    }
-    
-    string prompt_filtered = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/conversation/sendMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"conversation_key\": \""+conversation_key+"\",
-        \"prompt\": \""+prompt_filtered+"\",
-        \"simulatorHostname\": \""+simulatorHostname+"\",
-        \"regionName\": \""+regionName+"\",
-        \"message_id\": "+message_id+ "
-    }");
-}
-
-call_response(string conversation_key, integer message_id) {
-    llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"conversation_key\": \""+conversation_key+"\",
-        \"simulatorHostname\": \""+simulatorHostname+"\",
-        \"regionName\": \""+regionName+"\",
-        \"message_id\": "+message_id+"
-    }");
-}
-
-set_ready() {
-    llListenRemove(user_listener);
-    llListenRemove(config_listener);
-    llSetTimerEvent(0);
-    user=NULL_KEY;
-    username="";
-    prompt="";
-
-
-    config_sender=NULL_KEY;
-    configs_loaded=0;
-    agentName=NULL_KEY;
-    system=NULL_KEY;
-    model=NULL_KEY;
-    optionstring=NULL_KEY;
-
-    llSay(0, "Please click on me to start a new session.");
-    llSay(0, "---");
-    llSetTexture("AI-Box-01", ALL_SIDES);
-}
-
-string str_replace(string src, string from, string to)
-{
-    return llDumpList2String(llParseString2List(src, [from], []), to);
 }
 
 // Function to validate model against /models endpoint
@@ -250,105 +198,223 @@ validateAllParameters()
     validateModel(model);
 }
 
-start_conversation() {
-    llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to "+ agentName + "."); 
-    user_listener = llListen(com_channel, "", user, "");
-
-    stopwatch = 0;
-    prompt="";
-    llSetTexture("AI-Box-02", ALL_SIDES);
-
-    conversation_key="";
-    llSetTexture("AI-Box-02", ALL_SIDES);
-
-    start_oracle(username);
+start_oracle(string username) {
+    // Check if model validation has completed and failed
+    if (validationInProgress == 0 && modelsValidated == 0) {
+        llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
+        return;
+    }
+    
+    // If validation is still in progress, wait
+    if (validationInProgress == 1) {
+        llSay(0, "Model validation is still in progress. Please wait...");
+        return;
+    }
+    
+    string instructions = llReplaceSubString(system, "\"", "\\\"", 0);
+    llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+        \"username\": \""+username+"\",
+        \"simulatorHostname\": \""+simulatorHostname+"\",
+        \"regionName\": \""+regionName+"\",
+        \"model\": \"" + model + "\",
+        \"system_instructions\": \"" + instructions +"\",
+        \"options\": " + optionstring +"
+    }");
 }
+
+call_oracle(string conversation_key, integer message_id, string prompt) {
+    // Check if model validation has completed and failed
+    if (validationInProgress == 0 && modelsValidated == 0) {
+        llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
+        return;
+    }
+    
+    // If validation is still in progress, wait
+    if (validationInProgress == 1) {
+        llSay(0, "Model validation is still in progress. Please wait...");
+        return;
+    }
+    
+    string prompt_escaped = llReplaceSubString(prompt, "\"", "\\\"", 0);
+    llHTTPRequest(ait_endpoint + "/conversation/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+        \"conversation_key\": \""+conversation_key+"\",
+        \"prompt\": \""+prompt_escaped+"\",
+        \"simulatorHostname\": \""+simulatorHostname+"\",
+        \"regionName\": \""+regionName+"\",
+        \"message_id\": "+message_id+ "
+    }");
+}
+
+call_response(string conversation_key, integer message_id) {
+    llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+        \"conversation_key\": \""+conversation_key+"\",
+        \"simulatorHostname\": \""+simulatorHostname+"\",
+        \"regionName\": \""+regionName+"\",
+        \"message_id\": "+message_id+"
+    }");
+}
+
+set_ready() {
+    llListenRemove(listener);
+    llSetTimerEvent(0);
+    user=NULL_KEY;
+    username="";
+    prompt="";
+
+    
+    
+    
+
+    llSay(0, "Please click on me to start a new session.");
+    llSay(0, "---");
+    llSetTexture("AI-Box-01", ALL_SIDES);
+}
+
+
 
 default
 {
     state_entry()
     {
+        // Verify the notecard exists
+        if (llGetInventoryType(parametersNotecardName) != INVENTORY_NOTECARD)
+        {
+            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found.");
+            return;
+        }
+        if (llGetInventoryType(systemNotecardName) != INVENTORY_NOTECARD)
+        {
+            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found.");
+            return;
+        }
+        // Start reading the notecard from the first line
+
+        start_optionstring();
+        parametersNotecardQueryId = llGetNotecardLine(parametersNotecardName, parametersCurrentLine);
+        systemNotecardQueryId = llGetNotecardLine(systemNotecardName, systemCurrentLine);
+
         set_ready();
-        simulatorHostname = llGetSimulatorHostname();
-        regionName = llGetRegionName();
+    }
+
+    dataserver(key query_id, string data)
+    {
+        if (query_id == parametersNotecardQueryId)
+        {
+            if (data != EOF)
+            {
+
+                string line = [data];
+
+                list splits = llParseString2List(line, [":"],[]);
+                
+                if ( llGetListLength(splits) == 2 ) 
+                {
+                    string paramName = llList2String(splits, 0);
+                    string value = llList2String(splits, 1);
+
+                    if (paramName == "agentName") 
+                    {
+                        agentName = value;
+                    }
+                    if (paramName == "model") 
+                    {
+                        model = value;
+                    }
+                    
+                    integer listLength = llGetListLength(optionParameters);
+                    integer i;
+                    for (i=0; i< listLength; i++)
+                    {
+                        string indexName = llList2String(optionParameters, i);
+                        if (paramName == indexName) 
+                        {
+                            add_option(paramName, value);
+                        }
+                    }
+                }
+                // Get the next line
+                parametersCurrentLine++;
+                parametersNotecardQueryId = llGetNotecardLine(parametersNotecardName, parametersCurrentLine);
+            }
+            else
+            {
+                
+                // Now you have the entire notecard as a single string
+                llOwnerSay("Parameter notecard content loaded:");
+                llOwnerSay("agentName: " + agentName);
+                llOwnerSay("model: " + model);
+                
+                finish_optionstring();
+                llOwnerSay("optionstring: " + optionstring);
+                config_read=config_read + 1;
+            }
+        }
+        if (query_id == systemNotecardQueryId)
+        {
+            if (data != EOF)
+            {
+
+                string line = [data];
+
+                // Add this line to our collection
+                systemNotecardLines += line;
+                
+                // Get the next line
+                systemCurrentLine++;
+                systemNotecardQueryId = llGetNotecardLine(systemNotecardName, systemCurrentLine);
+            }
+            else
+            {
+                // We've reached the end of the notecard
+                // Combine all lines into a single string with newlines
+                string entireContent = llDumpList2String(systemNotecardLines, "\n");
+                
+                // Now you have the entire notecard as a single string
+                llOwnerSay("System notecard content loaded:");
+                llOwnerSay("system: " + entireContent);
+
+                system = entireContent;
+                
+                config_read=config_read + 1;
+                
+                // Validate parameters after both configs are loaded
+                if (config_read == 2) {
+                    validateAllParameters();
+                }
+            }
+        }
     }
 
     touch_start(integer num_detected)
     {
+        if (config_read!=2) {
+            llSay(0, "Error reading config.");
+            return;
+        }
         if (user!=NULL_KEY & llDetectedKey(0) != user) {
             llSay(0, "Sorry I am currently in use by " + llKey2Name(user) + ". Please await your turn." );
-        } else if (configs_loaded==0){
+        } else {
             user = llDetectedKey(0);
+            
+            llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to " + agentName + ". I can deal only with one user at a time."); 
             username = llKey2Name(user);
             
-            llSay(0, "Hello "+ llKey2Name(user) + ", I am now waiting for config information on channel "+config_channel +" by Inputter object.");
+            
             stopwatch = 0;
-
-            config_listener = llListen(config_channel, "", NULL_KEY, "");
-
+            prompt="";
+            conversation_key="";
             llSetTexture("AI-Box-02", ALL_SIDES);
             llSetTimerEvent(pollFreq);
+
+            start_oracle(username);
         }
     }
 
     listen(integer channel, string name, key id, string message)
     {
-        //llSay(0, "recieved on channel " + channel + " by " + name + " message: " + message);
-
-        if (user==NULL_KEY){
-            return;
-        }
-        if(channel == config_channel && id != user) {
-            if (configs_loaded==1){
-                return;
-            }
-            if (config_sender==NULL_KEY) {
-                config_sender=id;
-                //llSay(0, "config_sender: " + config_sender);
-            }
-            if (config_sender!=id){
-                llSay(0, "Recieved configs from multiple objects, please move objects out of whisper range on channel "+ config_channel);
-                return;
-            }
-            integer index = llSubStringIndex(message, ":");
-            if(index == -1){
-                return;
-            }
-            string paramName = llGetSubString(message, 0, index - 1);
-            string paramValue = deleteUpToSubstring(message, ":");
-            if (paramName=="llmConfig_agentName"){
-                agentName=paramValue;
-            }
-            if (paramName=="llmConfig_model"){
-                model=paramValue;
-            }
-            if (paramName=="llmConfig_system"){
-                system=paramValue;
-            }
-            if (paramName=="llmConfig_optionstring"){
-                optionstring=paramValue;
-            }
-
-            if (agentName!=NULL_KEY && model!=NULL_KEY && system!=NULL_KEY && optionstring!=NULL_KEY){
-                configs_loaded=1;
-                //llSay(0, "Configs have been recieved: ");
-                //llSay(0, "agentName: " + agentName);
-                //llSay(0, "system: " + system);
-                //llSay(0, "model: " + model);
-                //llSay(0, "optionstring: " + optionstring);
-
-                // Validate parameters before starting conversation
-                validateAllParameters();
-                
-                start_conversation();
-            }
-
-        }
-
         if(conversation_key==""){
             return;
         }
-
         if(message=="quit session" && id == user) {
             llSay(0, "Thank you for being here today "+username+". The session is finished, click to start a fresh one");
             llSetTexture("AI-Box-04", ALL_SIDES);
@@ -361,7 +427,7 @@ default
             call_oracle(conversation_key, conversation_message_id, prompt);
             llSay(0, "Message is sent.");
             pollingResponse=1;
-            llListenRemove(user_listener);
+            llListenRemove(listener);
         }   
     }
 
@@ -403,7 +469,7 @@ default
                 conversation_message_id=0;
                 pollingResponse=0;
 
-                user_listener = llListen(com_channel, "", user, "");
+                listener = llListen(com_channel, "", user, "");
                 return;
             }
 
@@ -415,7 +481,7 @@ default
 
             // start listening to user messages again
             pollingResponse=0;
-            user_listener = llListen(com_channel, "", user, "");
+            listener = llListen(com_channel, "", user, "");
             conversation_time = conversation_time + CONVERSATION_INCREMENT;
 
 
@@ -434,22 +500,13 @@ default
                 integer i_plus = i + 1;
                 llSay(0, i_plus + " " + chunk);
             }
-
             
-            
-            
-        } else if (202 == status) {
-            // "Waiting for result to be availible"
-            return;
-        } else if (400 == status) {
-            llSay(0, body);
-            return;
-        } else if (499 == status) {
-            llSay(0, "Connection refused, please contact script creator.");
+        } else if (425 == status) {
+            // 425 means the response is not yet available from AI talkmaster
             return;
         } else {
-            // we can ignore the other failed responses, since they are caused by llHTTPRequest TimeOut
-            return;
+            // Report all other status codes to owner
+            llOwnerSay("HTTP Error " + (string)status + ": " + body);
         }
     }
 

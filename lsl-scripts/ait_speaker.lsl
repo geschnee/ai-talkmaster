@@ -480,16 +480,12 @@ state active
             llOwnerSay("Audio generation response received:");
             llOwnerSay("Status: " + (string)status);
             llOwnerSay("Response: " + body);
-        } else if (202 == status) {
-            llOwnerSay("Audio generation in progress...");
-        } else if (400 == status) {
-            llOwnerSay("Audio generation error: " + body);
-        } else if (499 == status) {
-            llOwnerSay("Audio generation connection refused, please contact script creator.");
-        } else if (422 == status) {
-            llOwnerSay("Audio generation unprocessable entity: " + body);
+        } else if (425 == status) {
+            // 425 means the response is not yet available from AI talkmaster
+            return;
         } else {
-            llOwnerSay("Audio generation failed with status: " + (string)status);
+            // Report all other status codes to owner
+            llOwnerSay("HTTP Error " + (string)status + ": " + body);
         }
     }
 

@@ -4,6 +4,7 @@ keys/*
 __pycache__/*
 
 openai_key.txt
+llm_api_key.txt
 app_password.txt
 logfile.txt
 liquidsoap-logs/*
@@ -14,7 +15,13 @@ volumes/*
 
 *.mp3
 
+notes.md
+
 .vscode/
 ai-talkmaster.code-workspace
 
 call_for_proposals.md
+
+docker-hosting/docker-compose-hypergrid*
+
+lsl-scripts/CustomScripts/*

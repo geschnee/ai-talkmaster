@@ -656,23 +656,12 @@ default
                 llSay(0, i_plus + " " + chunk);
             }
             
-        } else if (202 == status) {
-            // "Waiting for result to be available"
+        } else if (425 == status) {
+            // 425 means the response is not yet available from AI talkmaster
             return;
-        } else if (400 == status) {
-            llOwnerSay(body);
-            return;
-        } else if (499 == status) {
-            llOwnerSay("Connection refused, please contact script creator.");
-            return;
-        } else if (422 == status) {
-            llOwnerSay("unprocessable entity:");
-            llOwnerSay(body);
-            return;
-        
         } else {
-            // we can ignore the other failed responses, since they are caused by llHTTPRequest TimeOut
-            return;
+            // Report all other status codes to owner
+            llOwnerSay("HTTP Error " + (string)status + ": " + body);
         }
     }
 

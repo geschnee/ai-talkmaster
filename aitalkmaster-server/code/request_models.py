@@ -1,9 +1,9 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-class GenerateGetResponseRequest(BaseModel):
+class GenerateGetMessageResponseRequest(BaseModel):
     username: str
     prompt: str
     model: str
@@ -26,7 +26,7 @@ class ConversationStartRequest(BaseModel):
     system_instructions: Optional[str] = ""
     options: Optional[dict] = {}
 
-class ConversationSendMessageRequest(BaseModel):
+class ConversationPostMessageRequest(BaseModel):
     conversation_key: str
     prompt: str
     message_id: str

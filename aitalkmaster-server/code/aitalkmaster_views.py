@@ -48,7 +48,7 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
             response_format="mp3",
             speed=1.0)
     else:
-        response = config.get_or_create_ollama_audio_client().audio.speech.create(
+        response = config.get_or_create_opensource_audio_client().audio.speech.create(
             model=audio_model,
             voice=audio_voice,
             input=response_msg,
@@ -188,9 +188,7 @@ def postaitMessage(request: AitPostMessageRequest):
         if config.chat_client.mode == ChatClientMode.OPENAI:
             response_msg = get_response_openai(request, ait_instance)
         elif config.chat_client.mode == ChatClientMode.OLLAMA:
-            log(f'before get_response_ollama')
             response_msg = get_response_ollama(request, ait_instance)
-            log(f'obtained response_msg from ollama: {response_msg}')
         else:
             return JSONResponse(
                 status_code=500,
@@ -212,7 +210,7 @@ def postaitMessage(request: AitPostMessageRequest):
         
             ait_instance.set_audio_created_at(request.message_id, time.time())
         
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} aitSendMessage: data: {request.message} response: {response_msg}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage: data: {request.message} response: {response_msg}')
         
 
         return JSONResponse(
