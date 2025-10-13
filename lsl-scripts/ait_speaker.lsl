@@ -2,7 +2,7 @@
 // Two states: active and inactive (default: inactive)
 // Listens on channel 8 (config) and channel 0
 // Only responds to owner's messages
-// When active the speakers messages get forwarded to AI Talkmaster and are simply voiced for the audio stream.
+// When active the speakers messages get forwarded to AI Talkmaster and are simply voiced for the audio stream. that belongs to the join_key.
 
 
 integer configChannel = 8;
@@ -11,7 +11,7 @@ integer com_channel = 0;
 // State management
 integer isActive = 0; // 0 = inactive, 1 = active
 
-string ait_endpoint = "http://hg.hypergrid.net:7999";
+string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 // Visual feedback colors
 vector inactiveColor = <0.2, 0.2, 0.2>; // Dark gray for inactive
@@ -44,6 +44,7 @@ string join_key;
 key voicesValidationId;
 integer voicesValidated = 0;
 integer validationInProgress = 0;
+integer validatingForActivation = 0;
 
 // HTTP response handling
 integer max_response_length = 16384;
@@ -178,8 +179,7 @@ sendToGenerateAudio(string username, string message)
         \"audio_voice\": \""+ audio_voice + "\",
         \"audio_model\": \"" + audio_model + "\" 
     }";
-    
-    llOwnerSay("Sending message to generateAudio: " + message);
+
     llHTTPRequest(ait_endpoint + "/ait/generateAudio", 
         [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], 
         body);
@@ -187,10 +187,22 @@ sendToGenerateAudio(string username, string message)
 
 
 // Function to validate audio parameters against /voices endpoint
-validateAudioParameters(string voiceToValidate, string audioModelToValidate)
+validateAudioParameters(string voiceToValidate, string audioModelToValidate, integer forActivation)
 {
+    if (validationInProgress) {
+        llOwnerSay("Validation already in progress, please wait...");
+        return;
+    }
+    
     validationInProgress = 1;
-    llOwnerSay("Validating audio voice: " + voiceToValidate + " and audio model: " + audioModelToValidate);
+    validatingForActivation = forActivation;
+    
+    if (forActivation) {
+        llOwnerSay("Validating audio parameters for activation: " + voiceToValidate + " and audio model: " + audioModelToValidate);
+    } else {
+        llOwnerSay("Validating audio voice: " + voiceToValidate + " and audio model: " + audioModelToValidate);
+    }
+    
     voicesValidationId = llHTTPRequest(ait_endpoint + "/voices", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
 }
@@ -214,7 +226,7 @@ validateAllParameters()
     }
     
     llOwnerSay("Starting parameter validation...");
-    validateAudioParameters(audio_voice, audio_model);
+    validateAudioParameters(audio_voice, audio_model, 0);
 }
 
 // Default state - automatically switch to inactive
@@ -271,10 +283,12 @@ state inactive
             // Handle dialog responses
             if (message == "ActivateSpeaker") {
                 llOwnerSay("Activating AIT Speaker...");
-                isActive = 1; // Set active state
-                updateVisualState(); // Update visual appearance
-                llListen(0, "","",""); // Start listening on channel 0
-                state active;
+                // Validate audio parameters before activation
+                if (audio_voice == "" || audio_model == "") {
+                    llOwnerSay("Error: Audio parameters not loaded. Cannot activate speaker.");
+                    return;
+                }
+                validateAudioParameters(audio_voice, audio_model, 1);
             }
             else if (message == "status") {
                 llOwnerSay("AIT Speaker Status: INACTIVE");
@@ -382,17 +396,39 @@ state inactive
                 
                 voicesValidated = (voiceValid && audioModelValid) ? 1 : 0;
                 
-                if (voicesValidated) {
-                    llOwnerSay("✓ All parameters validated successfully!");
-                    // Show dialog after successful validation
-                    showDialog(llGetOwner());
+                // Check if this is activation validation
+                if (validatingForActivation) {
+                    if (voicesValidated) {
+                        llOwnerSay("✓ Activation validation successful! Switching to active state.");
+                        isActive = 1; // Set active state
+                        updateVisualState(); // Update visual appearance
+                        llListen(0, "","",""); // Start listening on channel 0
+                        validatingForActivation = 0;
+                        validationInProgress = 0;
+                        state active;
+                    } else {
+                        llOwnerSay("✗ Activation validation failed. Speaker remains inactive.");
+                        llOwnerSay("Please check your audio configuration and try again.");
+                        validatingForActivation = 0;
+                        validationInProgress = 0;
+                    }
                 } else {
-                    llOwnerSay("✗ Parameter validation failed. Please check your configuration.");
+                    // Regular validation (during initialization)
+                    if (voicesValidated) {
+                        llOwnerSay("✓ All parameters validated successfully!");
+                        // Show dialog after successful validation
+                        showDialog(llGetOwner());
+                    } else {
+                        llOwnerSay("✗ Parameter validation failed. Please check your configuration.");
+                    }
+                    validationInProgress = 0;
                 }
-                
-                validationInProgress = 0;
             } else {
                 llOwnerSay("Error validating audio parameters: HTTP " + (string)status + " - " + body);
+                if (validatingForActivation) {
+                    llOwnerSay("✗ Activation validation failed due to server error. Speaker remains inactive.");
+                    validatingForActivation = 0;
+                }
                 validationInProgress = 0;
             }
             return;
@@ -459,7 +495,6 @@ state active
         }
         else if (channel == 0) {
             // Handle public channel messages when active
-            llOwnerSay("Speaker received message from " + name + ": " + message);
             
             // Only send to generateAudio when state is active
             if (isActive == 1) {
@@ -477,12 +512,7 @@ state active
     {
         // Handle generateAudio responses
         if(200 == status) {
-            llOwnerSay("Audio generation response received:");
-            llOwnerSay("Status: " + (string)status);
-            llOwnerSay("Response: " + body);
-        } else if (425 == status) {
-            // 425 means the response is not yet available from AI talkmaster
-            return;
+            llOwnerSay("Audio generated successfully");
         } else {
             // Report all other status codes to owner
             llOwnerSay("HTTP Error " + (string)status + ": " + body);

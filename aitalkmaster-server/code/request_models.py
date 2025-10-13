@@ -45,7 +45,7 @@ class AitPostMessageRequest(BaseModel):
     message_id: str
     audio_voice: Optional[str] = ""
     options: Optional[dict] = {}
-    audio_description: Optional[str] = ""
+    audio_instructions: Optional[str] = ""
     audio_model: Optional[str] = ""
 
 class AitMessageResponseRequest(BaseModel):
@@ -60,7 +60,7 @@ class AitGenerateAudioRequest(BaseModel):
     username: str
     message: str
     message_id: str
-    audio_description: Optional[str] = ""
+    audio_instructions: Optional[str] = ""
     audio_voice: Optional[str] = ""
     audio_model: Optional[str] = ""
 

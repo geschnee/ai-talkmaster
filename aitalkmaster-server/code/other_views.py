@@ -10,7 +10,7 @@ def status(request: Request):
         status_code=200,
         content="status online")
 
-@app.get("/chatmodels")
+@app.get("/chat_models")
 def get_available_models():
     
     try:

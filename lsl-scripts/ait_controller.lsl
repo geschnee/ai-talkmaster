@@ -1,6 +1,7 @@
-// AIT performances are organised using the join_key
-// All agent that use this join_key are part of the same conversation
-// This script resets the conversation that belongs to the join_key
+// AI Talkmaster conversations are organised using the join_key.
+// All agents that use this join_key are part of the same conversation.
+// This script resets the conversation that belongs to the join_key.
+// This is simply a reset of the conversation history.
 
 
 integer command_channel = 8; // Change this to any channel of your choice.
@@ -11,7 +12,7 @@ string join_key;
 string simulatorHostname;
 string regionName;
 
-string ait_endpoint = "http://hg.hypergrid.net:7999";
+string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 string joinkeyNotecardName = "join_key";
 key joinkeyNotecardQueryId;

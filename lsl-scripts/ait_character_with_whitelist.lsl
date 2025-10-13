@@ -47,7 +47,7 @@ list systemNotecardLines = [];
 string charactername;
 string model;
 string systemInstructions;
-string audio_instructions;
+string audio_description;
 string audio_voice;
 string audio_model;
 
@@ -59,6 +59,10 @@ list optionParameters = [
 ];
 
 
+list whitelisted_users = [];
+string whitelistNotecardName = "whitelist";
+key whitelistNotecardQueryId;
+integer whitelistCurrentLine=0;
 
 string joinkeyNotecardName = "join_key";
 key joinkeyNotecardQueryId;
@@ -76,6 +80,8 @@ integer queue_code= 0;
 integer isActive = 0;
 
 string pollingMessageId;
+string waitingForApprovalMessage;
+string waitingForApprovalUsername;
 
 // Function to split text into chunks
 list splitText(string text)
@@ -192,7 +198,7 @@ post_message(string message_id, string username, string message) {
         \"charactername\": \""+charactername+"\",
         \"message_id\": \""+message_id+ "\",
         \"options\": " + optionstring +",
-        \"audio_instructions\": \"" + audio_instructions + "\",
+        \"audio_description\": \"" + audio_description + "\",
         \"audio_voice\": \""+ audio_voice + "\",
         \"audio_model\": \"" + audio_model + "\" 
     }";
@@ -230,6 +236,7 @@ string ReplaceQuotesForJson(string input)
     return llDumpList2String(parts, "\\\"");
 }
 
+// Function to validate model against /models endpoint
 validateModel(string modelToValidate)
 {
     if (validationInProgress) {
@@ -295,6 +302,11 @@ default
             llOwnerSay("Error: Notecard '" + joinkeyNotecardName + "' not found.");
             return;
         }
+        if (llGetInventoryType(whitelistNotecardName) != INVENTORY_NOTECARD)
+        {
+            llOwnerSay("Error: Notecard '" + whitelistNotecardQueryId + "' not found.");
+            return;
+        }
         // Start reading the notecard from the first line
 
         start_optionstring();
@@ -303,6 +315,10 @@ default
 
         joinkeyNotecardQueryId = llGetNotecardLine(joinkeyNotecardName, 0);
 
+        key ownerKey = llGetOwner();         
+        string ownerName = llKey2Name(ownerKey);
+        whitelisted_users += [ownerName];
+        whitelistNotecardQueryId = llGetNotecardLine(whitelistNotecardName, whitelistCurrentLine);
 
 
         llListen(config_channel, "","","");
@@ -342,9 +358,9 @@ default
                     {
                         audio_model = value;
                     }
-                    if (paramName == "audio_instructions") 
+                    if (paramName == "audio_description") 
                     {
-                        audio_instructions = value;
+                        audio_description = value;
                     }
                     
                     integer listLength = llGetListLength(optionParameters);
@@ -369,7 +385,7 @@ default
                 llOwnerSay("Parameter notecard content loaded:");
                 llOwnerSay("charactername: " + charactername);
                 llOwnerSay("model: " + model);
-                llOwnerSay("audio_instructions: " + audio_instructions);
+                llOwnerSay("audio_description: " + audio_description);
                 llOwnerSay("audio_voice: " + audio_voice);
                 llOwnerSay("audio_model: " + audio_model);
                 
@@ -424,6 +440,32 @@ default
             }
         }
 
+        if (query_id == whitelistNotecardQueryId)
+        {
+            if (data != EOF)
+            {
+
+                string line = [data];
+                whitelisted_users += [line];
+                
+                // Get the next line
+                whitelistCurrentLine++;
+                whitelistNotecardQueryId = llGetNotecardLine(whitelistNotecardName, whitelistCurrentLine);
+            }
+            else
+            {
+                
+                // Now you have the entire notecard as a single string
+                llOwnerSay("Whitelist loaded:");
+                integer i = 0;
+                for (i = 0; i < llGetListLength(whitelisted_users); ++i)
+                {
+                    // Convert each element to string for printing
+                    llOwnerSay(llList2String(whitelisted_users, i));
+                }
+
+            }
+        }
     }
 
     listen(integer channel, string name, key id, string message)
@@ -438,10 +480,6 @@ default
             if (isActive==0){
                 return;
             }
-            // Don't process messages while waiting for HTTP response
-            if (pollingResponse == 1) {
-                return;
-            }
             if (llSubStringIndex(llToLower(message), llToLower(charactername)) == -1)
             {
                 // charactername was not in the message
@@ -451,13 +489,31 @@ default
             string username = llParseString2List(name, ["@"], [])[0];
             username = llStringTrim(username, 3);
 
-            transmitMessage(username, message);
+            waitingForApprovalUsername = username;
+
+            if (llListFindList(whitelisted_users, [username]) == -1){
+
+                queue_code += 1;
+                waitingForApprovalMessage = message;
+                
+                llOwnerSay(name + " sent message: " + message + " but is not in list of approved speakers, to approve the message, type command on channel " + config_channel + ": approve " + charactername + " " + queue_code );
+
+                return;
+            } else {
+                transmitMessage(username, message);
+            }
             
         }
         if (channel == config_channel) {
-            if (id != llGetOwner()) {
-                llInstantMessage(id, "You are not allowed to use config commands.");
+            string username = llParseString2List(name, ["@"], [])[0];
+            username = llStringTrim(username, 3);
+            if (llListFindList(whitelisted_users, [username]) == -1){
+                llOwnerSay(name + " is not in list of approved speakers");
                 return;
+            }
+            string approveMessageCommand = "approve " + charactername + " " + queue_code;
+            if (message == approveMessageCommand){
+                transmitMessage(waitingForApprovalUsername, waitingForApprovalMessage);
             }
 
             string ActivateAllCharactersCommand = "ActivateAllCharacters";

@@ -38,13 +38,13 @@ def generate_sequence_str(join_key: str):
     sequence_str = f"{sequence_number:03d}"
     return sequence_str
 
-def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: str, audio_description: str):
+def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: str, audio_instructions: str):
     if config.audio_client.mode == AudioClientMode.OPENAI:
         response = config.get_or_create_openai_audio_client().audio.speech.create(
             model=audio_model,
             voice=audio_voice,
             input=response_msg,
-            instructions=audio_description,
+            instructions=audio_instructions,
             response_format="mp3",
             speed=1.0)
     else:
@@ -52,7 +52,7 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
             model=audio_model,
             voice=audio_voice,
             input=response_msg,
-            instructions=audio_description,
+            instructions=audio_instructions,
             response_format="mp3",
             speed=1.0)
     with open(filename, "wb") as f:
@@ -205,7 +205,7 @@ def postaitMessage(request: AitPostMessageRequest):
         ait_instance.addResponse(response_msg, request.charactername, response_id=request.message_id, filename=filename)
 
         if config.audio_client is not None:
-            save_audio(filename, response_msg, request.audio_voice or "", request.audio_model or "", request.audio_description or "")
+            save_audio(filename, response_msg, request.audio_voice or "", request.audio_model or "", request.audio_instructions or "")
             save_metadata(filename, request.charactername, join_key)
         
             ait_instance.set_audio_created_at(request.message_id, time.time())
@@ -327,7 +327,7 @@ def generateAudio(request: AitGenerateAudioRequest):
         # Generate filename with sequence number
         filename = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.username}_{request.message_id}_{request.audio_voice}_{str(uuid.uuid4())}.mp3'
         
-        save_audio(filename, request.message, request.audio_voice, request.audio_model, request.audio_description)
+        save_audio(filename, request.message, request.audio_voice, request.audio_model, request.audio_instructions)
 
         save_metadata(filename, request.username, join_key)
         

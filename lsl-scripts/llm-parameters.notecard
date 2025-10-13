@@ -1,7 +1,8 @@
 agentName:Oracle
 model:llama3.2
-system:You are my personal assistant. Be precise.
-
+audio_model:kokoro
+audio_instructions:You are talking with a tired voice.
+audio_voice:af_bella
 
 // parameters from https://github.com/ollama/ollama/blob/main/docs/modelfile.md#parameter
 // do not use quotation marks for stop parameter

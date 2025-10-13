@@ -12,7 +12,7 @@ float reserveTime = 600.0;
 float pollFreq = 2.0;
 float stopwatch;
 
-string ait_endpoint = "http://hg.hypergrid.net:7999";
+string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 // Validation variables
 key modelsValidationId;
@@ -221,7 +221,6 @@ string str_replace(string src, string from, string to)
     return llDumpList2String(llParseString2List(src, [from], []), to);
 }
 
-// Function to validate model against /models endpoint
 validateModel(string modelToValidate)
 {
     if (validationInProgress) {
@@ -231,7 +230,7 @@ validateModel(string modelToValidate)
     
     validationInProgress = 1;
     llOwnerSay("Validating model: " + modelToValidate);
-    modelsValidationId = llHTTPRequest(ait_endpoint + "/models", 
+    modelsValidationId = llHTTPRequest(ait_endpoint + "/chat_models", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
 }
 
