@@ -5,7 +5,7 @@ We host 2 Instances of AI Talkmaster at http://hg.hypergrid.net, one using OpenS
 They are running on the same domain at different ports:
 
 | Instance | OpenSource | OpenAI |
-|----------|------|------------|
+|----------|------------|--------|
 | AI Talkmaster Port | 6000 | 7000 |
 | AI Talkmaster URL | http://hg.hypergrid.net:6000 | http://hg.hypergrid.net:7000 |
 | Icecast Port | 6010 | 7010 |
@@ -20,7 +20,7 @@ They are example scripts for generating objects that interact with the AI Talkma
 The scripts require a few different notecards to be present as parameterization of the scripts. The scripts validate the parameters on reset using the /chat_models endpoint.
 
 | Conversation Type | Generate | Conversation | AI Talkmaster |
-|----------|------|------------|
+|----------|------|------------|------|
 | Description | Single response (no history) | Conversation with History | Conversation with history, multiple chracters possible, audio stream available |
 | Script Name | Generate.lsl | Conversation.lsl | ait_character |
 | Required Notecards | llm-system, llm-parameters | llm-system, llm-parameters | llm-system, llm-parameters, join_key |
