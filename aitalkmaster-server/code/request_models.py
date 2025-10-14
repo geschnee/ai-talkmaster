@@ -3,6 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+# Generate requests (single-character conversations without history)
 class GenerateGetMessageResponseRequest(BaseModel):
     username: str
     prompt: str
@@ -17,24 +18,25 @@ class GenerateRequest(BaseModel):
     system_instructions: str
     options: Optional[dict] = {}
 
-
+# Conversation requests (single-character conversations with history, no audio streaming)
 class ConversationStartRequest(BaseModel):
     username: str
     model: str
-    simulatorHostname: str
     regionName: str
     system_instructions: Optional[str] = ""
     options: Optional[dict] = {}
 
 class ConversationPostMessageRequest(BaseModel):
     conversation_key: str
-    prompt: str
+    message: str
     message_id: str
 
 class ConversationGetMessageResponseRequest(BaseModel):
     conversation_key: str
     message_id: str
 
+
+# AI Talkmaster requests (multi-character conversations with history and audio streaming)
 class AitPostMessageRequest(BaseModel):
     join_key: str
     username: str # name of the agent that said the message

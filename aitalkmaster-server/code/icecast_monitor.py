@@ -18,6 +18,7 @@ def get_mounts(IcecastClientConfig: IcecastClientConfig) -> list[str]:
     url = f"http://{IcecastClientConfig.host}:{IcecastClientConfig.port}/admin/listmounts"
     
     try:
+        log(f"Getting mounts from {url}")
         response = requests.get(url, auth=(IcecastClientConfig.admin_user, IcecastClientConfig.admin_password))
         
         root = ET.fromstring(response.text)

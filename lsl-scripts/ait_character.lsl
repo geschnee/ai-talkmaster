@@ -2,6 +2,7 @@
 // The script can be in state active and inactive.
 // When active it listens to messages that mention the character's name.
 // When it's name is mentioned by a whitelisted user or character, it sends a request to the AI Talkmaster and waits for the generated response, which is then said by the character.
+// More details at https://github.com/geschnee/ai-talkmaster
 
 integer config_channel = 8;
 
@@ -30,8 +31,6 @@ float CONVERSATION_INCREMENT=60;
 
 integer MAX_LENGTH = 1024;    // Maximum string length in LSL
 
-string simulatorHostname;
-string regionName;
 
 
 // Read Entire Notecard as Single String
@@ -605,6 +604,9 @@ default
             
         } else if (425 == status) {
             // 425 means the response is not yet available from AI talkmaster
+            return;
+        } else if (0 == status) {
+            // Timeout/no reply
             return;
         } else {
             // Report all other status codes to owner

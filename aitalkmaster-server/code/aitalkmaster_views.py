@@ -318,6 +318,8 @@ def generateAudio(request: AitGenerateAudioRequest):
 
         join_key = request.join_key
 
+        _ = get_or_create_ait_instance(join_key) # This starts the audio stream if it is not already running
+
         # Create directory for the join_key if it doesn't exist
         join_key_dir = Path(f'./generated-audio/active/{request.join_key}')
         join_key_dir.mkdir(parents=True, exist_ok=True)

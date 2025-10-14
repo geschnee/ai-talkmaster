@@ -31,10 +31,6 @@ def check_audio_model(model: str) -> tuple[bool, list]:
         
 
 def validate_chat_model_decorator(func):
-    """
-    Decorator to validate chat model in request parameters.
-    Expects the function to receive a request object with 'model' and 'message_id' attributes.
-    """
     @wraps(func)
     def wrapper(request, *args, **kwargs):
         # Validate chat model
@@ -46,7 +42,6 @@ def validate_chat_model_decorator(func):
             return JSONResponse(
                 status_code=400,
                 content={
-                    "message_id": request.message_id,
                     "error": f"Invalid chat model: {request.model}",
                     "available_models": available_models
                 }
@@ -58,10 +53,7 @@ def validate_chat_model_decorator(func):
     return wrapper
 
 def validate_audio_voice_decorator(func):
-    """
-    Decorator to validate audio voice in request parameters.
-    Expects the function to receive a request object with 'audio_voice' and 'message_id' attributes.
-    """
+
     @wraps(func)
     def wrapper(request, *args, **kwargs):
         # Validate audio voice
@@ -74,7 +66,6 @@ def validate_audio_voice_decorator(func):
             return JSONResponse(
                 status_code=400,
                 content={
-                    "message_id": request.message_id,
                     "error": f"Invalid audio voice: {request.audio_voice}",
                     "allowed_voices": allowed_voices
                 }
@@ -86,10 +77,7 @@ def validate_audio_voice_decorator(func):
     return wrapper
 
 def validate_audio_model_decorator(func):
-    """
-    Decorator to validate audio model in request parameters.
-    Expects the function to receive a request object with 'audio_model' and 'message_id' attributes.
-    """
+
     @wraps(func)
     def wrapper(request, *args, **kwargs):
         # Validate audio model
@@ -102,7 +90,6 @@ def validate_audio_model_decorator(func):
             return JSONResponse(
                 status_code=400,
                 content={
-                    "message_id": request.message_id,
                     "error": f"Invalid audio model: {request.audio_model}",
                     "available_audio_models": available_audio_models
                 }

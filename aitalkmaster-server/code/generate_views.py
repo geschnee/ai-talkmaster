@@ -2,9 +2,8 @@ from fastapi.responses import JSONResponse
 from datetime import datetime
 
 
-from code.shared import app, config
+from code.shared import app, config, log
 from code.validation_decorators import validate_chat_model_decorator
-from code.aitalkmaster_utils import log
 from code.request_models import GenerateGetMessageResponseRequest, GenerateRequest
 from code.config import ChatClientMode
 
@@ -18,7 +17,7 @@ def getKey(username: str, model: str, prompt: str, system_instructions: str, opt
     return key
 
 @app.get("/generate/getMessageResponse")
-async def generateGetMessageResponse(request: GenerateGetMessageResponseRequest):
+def generateGetMessageResponse(request: GenerateGetMessageResponseRequest):
     try:
 
         key = getKey(request.username, request.model, request.prompt, request.system_instructions, str(request.options))
@@ -44,7 +43,8 @@ async def generateGetMessageResponse(request: GenerateGetMessageResponseRequest)
 def get_response_ollama_generate(request: GenerateRequest) -> str:
     response = config.get_or_create_ollama_chat_client().generate(model=request.model, prompt=request.prompt, system=request.system_instructions, options=request.options)
     
-    return response["message"]["content"]
+    log(f'response from ollama: {response}')
+    return response["response"]
     
 def get_response_openai_generate(request: GenerateRequest) -> str:
     response = config.get_or_create_openai_chat_client().responses.create(model=request.model, input=request.prompt, instructions=request.system_instructions)
@@ -54,7 +54,8 @@ def get_response_openai_generate(request: GenerateRequest) -> str:
 
 @app.post("/generate/postMessage")
 @validate_chat_model_decorator
-async def generate(request: GenerateRequest):
+def generate(request: GenerateRequest):
+    log(f'generate/postMessage')
     try:
         if config.chat_client.mode == ChatClientMode.OPENAI:
             response_msg = get_response_openai_generate(request)
@@ -64,9 +65,13 @@ async def generate(request: GenerateRequest):
             return JSONResponse(
                 status_code=500,
                 content={
-                    "error": f'unknown chat client mode: {config.chat_client.mode}'
+                    "error": f'unknown chat client mode: {config.chat_client.mode.value}'
                 }
             )
+        log(f'response generated')
+        log(f'response: {response_msg}')
+
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generate/postMessage: data:{request.model_dump()} response:{response_msg}')
 
         response_json = {
             "response": response_msg,
@@ -80,6 +85,7 @@ async def generate(request: GenerateRequest):
             "key": getKey(request.username, request.model, request.prompt, request.system_instructions, str(request.options)),
             "response": response_json
         }
+        log(f'key generated')
         response_queue.append(d)
 
         while len(response_queue)>=MAX_CHATS_NO_HISTORY:

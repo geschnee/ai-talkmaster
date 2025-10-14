@@ -2,15 +2,13 @@
 // All agents that use this join_key are part of the same conversation.
 // This script resets the conversation that belongs to the join_key.
 // This is simply a reset of the conversation history.
-
+// More details at https://github.com/geschnee/ai-talkmaster
 
 integer command_channel = 8; // Change this to any channel of your choice.
 integer listener;
 
 string join_key;
 
-string simulatorHostname;
-string regionName;
 
 string ait_endpoint = "http://hg.hypergrid.net:6000";
 

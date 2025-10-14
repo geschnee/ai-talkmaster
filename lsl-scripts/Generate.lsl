@@ -1,9 +1,11 @@
-// script by Herzstein
-// concet by Art Blue aka Reiner Schneeberger 
+// script by Herzstein Dev
+// This script provides a way of interacting with the AI Talkmaster Generate functionality.
+// When the user clicks the object, it sends the user's next message to the AI Talkmaster server and prints the response.
+// More details at https://github.com/geschnee/ai-talkmaster
 
+string ait_endpoint = "http://hg.hypergrid.net:6000";
 
-
-integer com_channel = 0; // Change this to any channel of your choice.
+integer com_channel = 0;
 integer listener;
 string prompt;
 key user=NULL_KEY;
@@ -12,16 +14,25 @@ float reserveTime = 600.0;
 float pollFreq = 2.0;
 float stopwatch;
 
-string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 // Validation variables
 key modelsValidationId;
 integer modelsValidated = 0;
 integer validationInProgress = 0;
 
+// Notecard completion tracking
+integer notecardsCompleted = 0;
+integer PARAMETERS_NOTECARD_COMPLETED = 1;
+integer SYSTEM_NOTECARD_COMPLETED = 2;
+integer ALL_NOTECARDS_COMPLETED = 3; // 1 + 2 = 3
+
 integer max_response_length = 16384;
 
 integer MAX_LENGTH = 1024;    // Maximum string length in LSL
+
+// Polling timeout variables
+float polling_start_time = 0.0;
+float polling_timeout = 60.0; // Stop polling after 60 seconds
 
 
 // Read Entire Notecard as Single String
@@ -33,7 +44,6 @@ integer parametersCurrentLine= 0;
 integer systemCurrentLine = 0;
 list systemNotecardLines = [];
 
-integer config_read=0;
 
 string agentName;
 string model;
@@ -196,7 +206,7 @@ call_response(string prompt, string username) {
     
     string system_instructions = llReplaceSubString(system, "\"", "\\\"", 0);
     string prompt_filtered = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/generate/getResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
+    llHTTPRequest(ait_endpoint + "/generate/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
         \"username\": \""+username+"\",
         \"prompt\": \""+prompt_filtered+"\",
         \"model\": \"" + model + "\",
@@ -331,7 +341,12 @@ default
                 
                 finish_optionstring();
                 llOwnerSay("optionstring: " + optionstring);
-                config_read=config_read + 1;
+                notecardsCompleted = notecardsCompleted | PARAMETERS_NOTECARD_COMPLETED;
+                
+                // Check if all notecards are completed
+                if (notecardsCompleted == ALL_NOTECARDS_COMPLETED) {
+                    validateAllParameters();
+                }
             }
         }
         if (query_id == systemNotecardQueryId)
@@ -360,10 +375,10 @@ default
 
                 system = entireContent;
                 
-                config_read=config_read + 1;
+                notecardsCompleted = notecardsCompleted | SYSTEM_NOTECARD_COMPLETED;
                 
-                // Validate parameters after both configs are loaded
-                if (config_read == 2) {
+                // Check if all notecards are completed
+                if (notecardsCompleted == ALL_NOTECARDS_COMPLETED) {
                     validateAllParameters();
                 }
             }
@@ -372,7 +387,7 @@ default
 
     touch_start(integer num_detected)
     {
-        if (config_read!=2) {
+        if (notecardsCompleted != ALL_NOTECARDS_COMPLETED) {
             llSay(0, "Error reading config.");
             return;
         }
@@ -397,6 +412,7 @@ default
         if(channel == com_channel && id == user) {
             stopwatch=0;
             prompt = message;
+            polling_start_time = llGetUnixTime(); // Record when polling started
             call_oracle(message, username);
             llSay(0, "Message is sent.");
             llListenRemove(listener);
@@ -469,6 +485,9 @@ default
         } else if (425 == status) {
             // 425 means the response is not yet available from AI talkmaster
             return;
+        } else if (0 == status) {
+            // Timeout/no reply
+            return;
         } else {
             // Report all other status codes to owner
             llOwnerSay("HTTP Error " + (string)status + ": " + body);
@@ -487,6 +506,15 @@ default
             set_ready();
         } else {
             if (prompt != "") {
+                // Check if polling has timed out
+                float current_time = llGetUnixTime();
+                if (current_time - polling_start_time > polling_timeout) {
+                    llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for prompt: " + prompt);
+                    prompt = ""; // Clear prompt to stop polling
+                    llSay(0, "Sorry, the response took too long. Please try again.");
+                    set_ready();
+                    return;
+                }
                 call_response(prompt, username);
             }
         }

@@ -11,7 +11,16 @@ liquidsoap-logs/*
 icecast-logs/*
 generated_audio/*
 
+aitalkmaster-server/confgis/
+aitalkmaster-server/configs/docker-hypergrid*
+
+docker-hosting/docker-compose-hypergrid*
+docker-hosting/hypergrid*
+
 volumes/*
+volumes_opensource/*
+volumes_openai/*
+
 
 *.mp3
 
@@ -22,6 +31,6 @@ ai-talkmaster.code-workspace
 
 call_for_proposals.md
 
-docker-hosting/docker-compose-hypergrid*
+
 
 lsl-scripts/CustomScripts/*

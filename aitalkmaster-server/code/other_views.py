@@ -20,7 +20,7 @@ def get_available_models():
         return JSONResponse(
             status_code=200,
             content={
-                "chat_client_mode": config.chat_client.mode,
+                "chat_client_mode": config.chat_client.mode.value,
                 "chat_models": allowed_models,
                 "count": len(allowed_models)
             }
@@ -51,7 +51,7 @@ def get_available_voices():
         return JSONResponse(
             status_code=200,
             content={
-                "audio_client_mode": config.audio_client.mode,
+                "audio_client_mode": config.audio_client.mode.value,
                 "default_voice": config.audio_client.default_voice,
                 "default_model": config.audio_client.default_model,
                 "allowed_voices": voices,

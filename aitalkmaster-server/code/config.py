@@ -140,6 +140,7 @@ class Config:
         
         self.chat_client = ChatClientConfig(
             mode=chat_mode,
+            key_file=chat_client_data.get('key_file'),
             base_url=chat_client_data.get('base_url'),
             default_model=chat_client_data.get('default_model'),
             allowed_models=chat_client_data.get('allowed_models')
@@ -257,10 +258,14 @@ class Config:
             FileNotFoundError: If key file doesn't exist
             ValueError: If key file is empty
         """
+
         key_file = Path(file_path)
         
         if not key_file.exists():
             raise FileNotFoundError(f"OpenAI key file not found at {key_file}")
+
+        if key_file.is_dir():
+            raise ValueError(f"OpenAI key file is a directory: {key_file}")
         
         with open(key_file, "r") as f:
             key = f.read().strip()

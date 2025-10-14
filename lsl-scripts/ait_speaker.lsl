@@ -46,6 +46,12 @@ integer voicesValidated = 0;
 integer validationInProgress = 0;
 integer validatingForActivation = 0;
 
+// Notecard completion tracking
+integer notecardsCompleted = 0;
+integer PARAMETERS_NOTECARD_COMPLETED = 1;
+integer JOINKEY_NOTECARD_COMPLETED = 2;
+integer ALL_NOTECARDS_COMPLETED = 3; // 1 + 2 = 3
+
 // HTTP response handling
 integer max_response_length = 16384;
 
@@ -186,7 +192,6 @@ sendToGenerateAudio(string username, string message)
 }
 
 
-// Function to validate audio parameters against /voices endpoint
 validateAudioParameters(string voiceToValidate, string audioModelToValidate, integer forActivation)
 {
     if (validationInProgress) {
@@ -203,7 +208,7 @@ validateAudioParameters(string voiceToValidate, string audioModelToValidate, int
         llOwnerSay("Validating audio voice: " + voiceToValidate + " and audio model: " + audioModelToValidate);
     }
     
-    voicesValidationId = llHTTPRequest(ait_endpoint + "/voices", 
+    voicesValidationId = llHTTPRequest(ait_endpoint + "/audio_models", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
 }
 
@@ -353,8 +358,12 @@ state inactive
                 finish_optionstring();
                 llOwnerSay("optionstring: " + optionstring);
                 
-                // Validate parameters
-                validateAllParameters();
+                notecardsCompleted = notecardsCompleted | PARAMETERS_NOTECARD_COMPLETED;
+                
+                // Check if all notecards are completed
+                if (notecardsCompleted == ALL_NOTECARDS_COMPLETED) {
+                    validateAllParameters();
+                }
             }
         }
         
@@ -366,6 +375,13 @@ state inactive
                 string line = [data];
                 join_key = line;
                 llOwnerSay("join_key has been read " + join_key);
+                
+                notecardsCompleted = notecardsCompleted | JOINKEY_NOTECARD_COMPLETED;
+                
+                // Check if all notecards are completed
+                if (notecardsCompleted == ALL_NOTECARDS_COMPLETED) {
+                    validateAllParameters();
+                }
             }
         }
     }
@@ -376,7 +392,7 @@ state inactive
         if (request_id == voicesValidationId) {
             if (status == 200) {
                 llOwnerSay("Voices validation response received");
-                string validVoices = llJsonGetValue(body, ["valid_voices"]);
+                string validVoices = llJsonGetValue(body, ["allowed_voices"]);
                 string audioModels = llJsonGetValue(body, ["audio_models"]);
                 
                 integer voiceValid = isValueInJsonArray(validVoices, audio_voice);

@@ -15,7 +15,7 @@ count = ref(0)
 
 
 def create_stream(join_key) =
-  print("Start streaming #{join_key} print")
+  print("Start streaming #{join_key}")
   if
     list.assoc.mem(join_key, streams())
   then

@@ -7,7 +7,9 @@ They are running on the same domain at different ports:
 | Instance | OpenSource | OpenAI |
 |----------|------|------------|
 | AI Talkmaster Port | 6000 | 7000 |
+| AI Talkmaster URL | http://hg.hypergrid.net:6000 | http://hg.hypergrid.net:7000 |
 | Icecast Port | 6010 | 7010 |
+| Icecast Stream URL | http://hg.hypergrid.net:6010/stream/{join_key} | http://hg.hypergrid.net:7010/stream/{join_key} |
 
 The lsl-scripts use the OpenSource instance.
 

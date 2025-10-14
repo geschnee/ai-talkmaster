@@ -5,9 +5,8 @@ import uuid
 from typing import Optional
 from dataclasses import dataclass
 
-from code.shared import app, config
+from code.shared import app, config, log
 from code.validation_decorators import validate_chat_model_decorator
-from code.aitalkmaster_utils import log
 from code.request_models import ConversationStartRequest, ConversationGetMessageResponseRequest, ConversationPostMessageRequest
 from code.openai_response import CharacterResponse
 from code.config import ChatClientMode
@@ -50,10 +49,10 @@ class HistoryElement:
         self.options = options
         self.system = system
         
-    def addPrompt(self, prompt: str, message_id: str):
+    def addMessage(self, message: str, message_id: str):
         """Add a user message to the conversation history"""
         user_message = ConversationMessage(
-            content=prompt,
+            content=message,
             message_id=message_id
         )
         self.user_messages.append(user_message)
@@ -133,9 +132,9 @@ def getHistoryElement(conversation_key):
 
 @app.post("/conversation/start")
 @validate_chat_model_decorator
-async def startConversation(request: ConversationStartRequest):
+def startConversation(request: ConversationStartRequest):
     try:
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} startConversation: {request.username}, {request.model}, {request.simulatorHostname}, {request.regionName}, {request.options}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} startConversation: {request.username}, {request.model}, {request.regionName}, {request.options}')
 
         while len(history_queue)>=MAX_CHATS_HISTORY:
             history_queue.pop()
@@ -158,7 +157,7 @@ async def startConversation(request: ConversationStartRequest):
 
 
 @app.get("/conversation/getMessageResponse")
-async def conversationGetMessage(request: ConversationGetMessageResponseRequest):
+def conversationGetMessage(request: ConversationGetMessageResponseRequest):
     try:
         historyElement = getHistoryElement(conversation_key=request.conversation_key)
         if historyElement == None:
@@ -210,7 +209,7 @@ def get_response_openai_conversation(he: HistoryElement) -> str:
     return response.output_parsed.text_response # type: ignore
 
 @app.post("/conversation/postMessage")
-async def conversationPostMessage(request: ConversationPostMessageRequest):
+def conversationPostMessage(request: ConversationPostMessageRequest):
     try:
         historyElement = getHistoryElement(conversation_key=request.conversation_key)
         if historyElement == None:
@@ -220,7 +219,7 @@ async def conversationPostMessage(request: ConversationPostMessageRequest):
             )
 
 
-        historyElement.addPrompt(request.prompt, request.message_id)
+        historyElement.addMessage(request.message, request.message_id)
         
 
         if config.chat_client.mode == ChatClientMode.OPENAI:
