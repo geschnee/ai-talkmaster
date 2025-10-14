@@ -23,8 +23,7 @@ The scripts require a few different notecards to be present as parameterization 
 |----------|------|------------|
 | Description | Single response (no history) | Conversation with History | Conversation with history, multiple chracters possible, audio stream available |
 | Script Name | Generate.lsl | Conversation.lsl | ait_character |
-| Required Notecards | <ul><li>llm-system</li><li>llm-parameters</li></ul> | <ul><li>llm-system</li><li>llm-parameters</li></ul> | <ul><li>llm-system</li><li>llm-parameters</li><li>join_key</li></ul> |
-
+| Required Notecards | llm-system, llm-parameters | llm-system, llm-parameters | llm-system, llm-parameters, join_key |
 
 
 ## Notecard details
