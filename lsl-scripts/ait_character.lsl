@@ -22,7 +22,7 @@ float conversation_time=0;
 integer conversation_message_id= 0;
 integer pollingResponse=0;
 float polling_start_time = 0.0;
-float polling_timeout = 60.0; // Stop polling after 30 seconds
+float polling_timeout = 300.0; // Stop polling after 5 minutes
 
 integer max_response_length = 16384;
 
@@ -606,7 +606,7 @@ default
             // 425 means the response is not yet available from AI talkmaster
             return;
         } else if (0 == status) {
-            // Timeout/no reply
+            // request Timeout in OpenSimulator: returns code 0 after 30 seconds
             return;
         } else {
             // Report all other status codes to owner

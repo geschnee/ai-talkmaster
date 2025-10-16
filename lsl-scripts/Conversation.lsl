@@ -15,6 +15,8 @@ float reserveTime = 180.0;
 float pollFreq = 2.0;
 float stopwatch;
 
+integer command_channel = 8;
+
 
 string conversation_key;
 float conversation_time=0;
@@ -25,7 +27,7 @@ integer max_response_length = 16384;
 
 // Polling timeout variables
 float polling_start_time = 0.0;
-float polling_timeout = 60.0; // Stop polling after 60 seconds
+float polling_timeout = 300.0; // Stop polling after 5 minutes
 
 float CONVERSATION_INCREMENT=60;
 
@@ -260,6 +262,7 @@ call_response(string conversation_key, integer message_id) {
 
 set_ready() {
     llListenRemove(listener);
+    llListenRemove(command_channel);
     llSetTimerEvent(0);
     user=NULL_KEY;
     username="";
@@ -394,15 +397,29 @@ default
     touch_start(integer num_detected)
     {
         if (notecardsCompleted != ALL_NOTECARDS_COMPLETED) {
-            llSay(0, "Error reading config.");
+            llSay(0, "Error: Configuration notecards not loaded properly. Please check that 'llm-parameters' and 'llm-system' notecards exist and contain valid data.");
+            return;
+        }
+        if (validationInProgress == 1) {
+            llSay(0, "Model validation is still in progress. Please wait...");
+            return;
+        }
+        if (validationInProgress == 0 && modelsValidated == 0) {
+            llSay(0, "Error: Model validation failed. Model '" + model + "' is not available on the server. Please check your configuration.");
             return;
         }
         if (user!=NULL_KEY & llDetectedKey(0) != user) {
             llSay(0, "Sorry I am currently in use by " + llKey2Name(user) + ". Please await your turn." );
+        } else if (user!=NULL_KEY and llDetectedKey(0) == user ) {
+            if (pollingResponse == 1) {
+                llInstantMessage(user, "Conversation in progress, I am waiting for the generated response. You can abort this conversation with ExitConversation on channel " + command_channel);
+            } else {
+                llInstantMessage(user, "You can send more messages.");
+            }            
         } else {
             user = llDetectedKey(0);
             
-            llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to " + agentName + ". I can deal only with one user at a time."); 
+            llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to " + agentName + ". I can deal only with one user at a time We can have a conversation with many messages."); 
             username = llKey2Name(user);
             
             
@@ -421,9 +438,8 @@ default
         if(conversation_key==""){
             return;
         }
-        if(message=="quit session" && id == user) {
+        if(channel == command_channel && message == "ExitConversation" && id == user) {
             llSay(0, "Thank you for being here today "+username+". The session is finished, click to start a fresh one");
-            llSetTexture("AI-Box-04", ALL_SIDES);
             set_ready();
         }
         if(channel == com_channel && id == user) {
@@ -434,6 +450,7 @@ default
             pollingResponse=1;
             polling_start_time = llGetUnixTime(); // Record when polling started
             llListenRemove(listener);
+            llListenRemove(command_channel);
         }   
     }
 
@@ -476,6 +493,7 @@ default
                 pollingResponse=0;
 
                 listener = llListen(com_channel, "", user, "");
+                llListen(command_channel, "", user, "");
                 return;
             }
 
@@ -488,6 +506,7 @@ default
             // start listening to user messages again
             pollingResponse=0;
             listener = llListen(com_channel, "", user, "");
+            llListen(command_channel, "", user, "");
             conversation_time = conversation_time + CONVERSATION_INCREMENT;
 
 
@@ -511,7 +530,7 @@ default
             // 425 means the response is not yet available from AI talkmaster
             return;
         } else if (0 == status) {
-            // Timeout/no reply
+            // request Timeout in OpenSimulator: returns code 0 after 30 seconds
             return;
         } else {
             // Report all other status codes to owner
@@ -527,7 +546,6 @@ default
         // If the remaining seconds have exhausted.
         if(remaining<=0.0) {
             llSay(0, "Thank you for being here today "+username+". The session is finished, click to start a fresh one");
-            llSetTexture("AI-Box-04", ALL_SIDES);
             set_ready();
         } else {
             if (pollingResponse == 1) {
@@ -541,6 +559,7 @@ default
                     pollingResponse = 0; // Stop polling
                     llSay(0, "Sorry, the response took too long. Please try again.");
                     listener = llListen(com_channel, "", user, ""); // Resume listening
+                    llListen(command_channel, "", user, "");
                     return;
                 }
                 call_response(conversation_key, conversation_message_id);

@@ -23,5 +23,4 @@ USER liquidsoap
 WORKDIR /home/liquidsoap
 
 # Start liquidsoap with telnet server enabled
-#CMD ["liquidsoap", "--interactive", "--telnet", "0.0.0.0:1234", "/scripts/start-stop-server.liq"]
 CMD ["liquidsoap", "/scripts/start-stop-server.liq"]

@@ -22,34 +22,37 @@ def create_stream(join_key) =
     print("Stream #{join_key} already exists")
     "Stream for join_key #{join_key} already exists!"
   else
-
     l = playlog(persistency = "/var/log/liquidsoap/playlog_#{join_key}.txt", hash=fun(m) -> m['initial_uri'])
 
-    # Function to check if a file was already played
     def check(r)
-
-      # TODO can we implement a waiting process here?
-      # if there is a long message being played, i am not sure how it handles newly generated files
-      # I suspect they are "played" concurrently (from logs) --> the second file is not heard on the stream
-
       m = request.metadata(r)
-
       if l.last(m) == infinity then
-          log.important("Playing #{m['initial_uri']}")
-          print("Playing #{m['initial_uri']}")
-          l.add(m)
+          #log.important("Will play #{m['initial_uri']}")
+          #print("Will play #{m['initial_uri']}")
           true
       else
-          log.important("Rejecting #{m['initial_uri']}")
-          print("Rejecting #{m['initial_uri']}")
+          #log.important("Rejecting #{m['initial_uri']}")
+          #print("Rejecting #{m['initial_uri']}")
           false
       end
     end
-    generated_playlist = playlist("/generated-audio/active/#{join_key}", loop=false, reload=1, reload_mode="seconds", mode="normal", check_next=check)
+
+    def add_track_to_playlog(m)
+      # the on_metadata and on_track methods are called during the playing of the audio file m
+      if l.last(m) == infinity then
+        l.add(m)
+      end
+    end
+
+    generated_playlist = playlist("/generated-audio/active/#{join_key}", prefetch=1, loop=false, reload=1, reload_mode="seconds", mode="normal", check_next=check)
+
+    generated_playlist.on_metadata(synchronous=true, add_track_to_playlog)
+    generated_playlist.on_track(synchronous=true, add_track_to_playlog)
 
     waiting_playlist = playlist("/fallback-audio/", mode="normal")
     waiting_playlist = amplify(0.6, waiting_playlist)
     waiting_safe = mksafe(waiting_playlist)
+
     stream_content = fallback(track_sensitive=false, [generated_playlist, waiting_safe])
     out = output.icecast(
         id="restream-#{count()}",
@@ -59,6 +62,14 @@ def create_stream(join_key) =
         port=8000,
         password="srcpassword",
         mean(stream_content)
+    )
+    
+    count := count() + 1
+    outfile = output.file(
+      id="fileoutput-#{count()}",
+      %mp3(bitrate = 32, samplerate = 22050, stereo = false),
+      "fileoutput-test.mp3",
+      mean(stream_content)
     )
     count := count() + 1
     streams := [...streams(), (join_key, out.shutdown)]

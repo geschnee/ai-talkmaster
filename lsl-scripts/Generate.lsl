@@ -32,7 +32,7 @@ integer MAX_LENGTH = 1024;    // Maximum string length in LSL
 
 // Polling timeout variables
 float polling_start_time = 0.0;
-float polling_timeout = 60.0; // Stop polling after 60 seconds
+float polling_timeout = 300.0; // Stop polling after 5 minutes
 
 
 // Read Entire Notecard as Single String
@@ -486,7 +486,7 @@ default
             // 425 means the response is not yet available from AI talkmaster
             return;
         } else if (0 == status) {
-            // Timeout/no reply
+            // request Timeout in OpenSimulator: returns code 0 after 30 seconds
             return;
         } else {
             // Report all other status codes to owner

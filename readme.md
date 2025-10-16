@@ -15,14 +15,17 @@ The lsl-scripts use the OpenSource instance.
 
 # Information for using AI Talkmaster and LSL-Scripts in-world
 
-There are a three kinds of conversations: Generate, Conversation and AI Talkmaster
-They are example scripts for generating objects that interact with the AI Talkmaster server to generate text responses in the lsl-scripts directory.
+There are a three kinds of interactions with the large language models: Generate, Conversation and AI Talkmaster. 
+Generate and Conversation are precursors of the multi-character conversations of AI Talkmaster. Generate replies to each message with a single message without keeping a history or extended context. Conversation allows for a back-and-forth with many consecutive messages that share a history/context.
+The AI Talkmaster conversations go a step further and allow many participants to be a part of the conversation. Furthermore the AI Talkmaster conversations are converted to a live [audio-stream](#stream-mount).
+
+There are example scripts for generating objects that interact with the AI Talkmaster server to generate text responses in the lsl-scripts directory.
 The scripts require a few different notecards to be present as parameterization of the scripts. The scripts validate the parameters on reset using the /chat_models endpoint.
 
 | Conversation Type | Generate | Conversation | AI Talkmaster |
 |----------|------|------------|------|
 | Description | Single response (no history) | Conversation with History | Conversation with history, multiple chracters possible, audio stream available |
-| Script Name | Generate.lsl | Conversation.lsl | ait_character |
+| Script Name | Generate.lsl | Conversation.lsl | ait_character.lsl |
 | Required Notecards | llm-system, llm-parameters | llm-system, llm-parameters | llm-system, llm-parameters, join_key |
 
 
@@ -47,7 +50,7 @@ The following parameters are only used/required with the AI Talkmaster endpoints
 * audio_instructions
 * audio_voice
 
-## join_key
+### join_key
 
 This notecard is only required for the AI Talkmaster conversations (multi-character conversations with history and audio streaming).
 The notecard contains one value alone, this is called the join_key and is used as an identifier for the conversation.
@@ -59,7 +62,7 @@ It is also used in the URL of the [audio stream](#stream-mount).
 The AI Talkmaster server provides three kinds of AI conversations, that can be used from OpenSimulator.
 The scripts in lsl-scripts directory are examples of how these scripts can be used.
 
-There are 3 different postMessage endpoints for generating text, these requests start the generation of text using large language models. This generation may take a few minutes, depending on the selected models and requests themselves. These long response times lead to timeouts (60 seconds in [LSL](https://wiki.secondlife.com/wiki/LlHTTPRequest)). The getMessageResponse endpoints can be used to get the generated result when the generation reached a timeout.
+There are 3 different postMessage endpoints for generating text, these requests start the generation of text using large language models. This generation may take a few minutes, depending on the selected models and requests themselves. These long response times lead to timeouts (30 seconds in OpenSimulator and 60 seconds in [LSL](https://wiki.secondlife.com/wiki/LlHTTPRequest#Caveats)). The getMessageResponse endpoints can be used to get the generated result when the generation reached a timeout.
 
 
 ## Server Endpoints
@@ -89,22 +92,23 @@ Chat with (multiple) AI characters.
 - `POST /ait/generateAudio` - Generate audio from text
 
 
+#### Audio Stream
 <a name="stream-mount"></a>
 AI Talkmaster conversations can be streamed to Icecast when configured properly, the AI Talkmaster conversations are then available as audio streams at the following URL:
 http://{aitalkmasterUrl}:{IcecastPort}/stream/{join_key}
 
-For example the stream for Godot is available at:
+For example the stream for join_key Godot is available at:
 http://hg.hypergrid.net:7010/stream/Godot
 
 
-## Return codes of the server
+## Server return codes
 
-200 All good, response is returned
-400 Bad Request
-401 Undefined Endpoint
-422 Request data could not be processed, e.g. wrongly named parameters in json data
-425 Too Early, this is returned by getMessageResponse when the response is not yet generated
-500 internal error, the server owner/programmer has to fix something
+- 200 All good, response is returned
+- 400 Bad Request
+- 401 Undefined Endpoint
+- 422 Request data could not be processed, e.g. wrongly named parameters in json data
+- 425 Too Early, this is returned by getMessageResponse when the response is not yet generated
+- 500 internal error, the server owner/programmer has to fix something
 
 # Hosting AI Talkmaster
 
@@ -131,7 +135,7 @@ You can use mode=="ollama" in the chat client config.
 By default Ollama is only accessible from the very same host it is running on, see [FAQ](https://docs.ollama.com/faq).
 In the example docker-compose files and config files in aitalkmaster-server/config we assume Ollama is running on the host machine.
 
-We use the docker-compose-nginx.yml to make the Ollama available on port 11433 from the docker containers using host.docker.internal as adress.
+We use the docker-compose-nginx.yml to make the Ollama available on port 11433 from the docker containers using host.docker.internal as address.
 
 Ollama provides a lot of [options](https://github.com/ollama/ollama/blob/main/docs/modelfile.md) for generating text responses, they can be sent to AI Talkmaster.
 

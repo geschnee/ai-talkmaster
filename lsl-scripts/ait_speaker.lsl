@@ -4,6 +4,8 @@
 // Only responds to owner's messages
 // When active the speakers messages get forwarded to AI Talkmaster and are simply voiced for the audio stream. that belongs to the join_key.
 
+// This script is intended to be used on a (HUD) wearable object.
+
 
 integer configChannel = 8;
 integer com_channel = 0;

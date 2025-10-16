@@ -1,5 +1,16 @@
 # Issues
 
+## Audio Skipping
+
+Sometimes some audio files are skipped (observable via VLC and Firestorm), liquidsoap logs show that they are played.
+
+Testing using Icecast playlog showed that the files never reached icecast.
+
+Result:
+
+Solved by changing the liquidsoap script. Now the audio files are only added to the playlog, using on_metadata (metadata recieved) and on_track (track finished) callbacks.
+
+
 ## Audio Delay
 
 There is a delay between the creation of the MP3 Files (+ Liquidsoap file detection) and hearing them in the Icecast stream.
