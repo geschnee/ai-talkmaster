@@ -1,3 +1,8 @@
+# As of the default Ollama configurations, it runs on port 11434 and restricts the access to localhost only. The containers might not access the Ollama directly.
+# This service makes the Ollama available on port 11433 from the docker containers using host.docker.internal as address.
+
+
+
 services:
   nginx_ollamaproxy:
     image: nginx:alpine

@@ -5,7 +5,7 @@
 
 string ait_endpoint = "http://hg.hypergrid.net:6000";
 
-integer com_channel = 0;
+
 integer listener;
 string prompt;
 key user=NULL_KEY;
@@ -45,7 +45,7 @@ integer systemCurrentLine = 0;
 list systemNotecardLines = [];
 
 
-string agentName;
+string charactername;
 string model;
 string system;
 
@@ -274,12 +274,12 @@ default
         // Verify the notecard exists
         if (llGetInventoryType(parametersNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found. Please add it to the object.");
             return;
         }
         if (llGetInventoryType(systemNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found. Please add it to the object.");
             return;
         }
         // Start reading the notecard from the first line
@@ -307,9 +307,9 @@ default
                     string paramName = llList2String(splits, 0);
                     string value = llList2String(splits, 1);
 
-                    if (paramName == "agentName") 
+                    if (paramName == "charactername") 
                     {
-                        agentName = value;
+                        charactername = value;
                     }
                     if (paramName == "model") 
                     {
@@ -336,7 +336,7 @@ default
                 
                 // Now you have the entire notecard as a single string
                 llOwnerSay("Parameter notecard content loaded:");
-                llOwnerSay("agentName: " + agentName);
+                llOwnerSay("charactername: " + charactername);
                 llOwnerSay("model: " + model);
                 
                 finish_optionstring();
@@ -388,7 +388,7 @@ default
     touch_start(integer num_detected)
     {
         if (notecardsCompleted != ALL_NOTECARDS_COMPLETED) {
-            llSay(0, "Error reading config.");
+            llSay(0, "Error reading config. Please check that 'llm-parameters' and 'llm-system' notecards exist and contain valid data. Reset the script for more details.");
             return;
         }
         if (user!=NULL_KEY & llDetectedKey(0) != user) {
@@ -396,10 +396,10 @@ default
         } else {
             user = llDetectedKey(0);
             
-            llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to "+ agentName + ". I can deal only with one user at a time."); 
+            llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to "+ charactername + ". I can deal only with one user at a time."); 
             username = llKey2Name(user);
-            llSay(0, "Please enter something you want to say to "+ agentName + " in chat.");
-            listener = llListen(com_channel, "", user, "");
+            llSay(0, "Please enter something you want to say to "+ charactername + " in chat.");
+            listener = llListen(0, "", user, "");
             stopwatch = 0;
             prompt="";
             llSetTexture("AI-Box-02", ALL_SIDES);
@@ -409,7 +409,7 @@ default
 
     listen(integer channel, string name, key id, string message)
     {
-        if(channel == com_channel && id == user) {
+        if(channel == 0 && id == user) {
             stopwatch=0;
             prompt = message;
             polling_start_time = llGetUnixTime(); // Record when polling started

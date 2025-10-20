@@ -56,7 +56,7 @@ integer systemCurrentLine = 0;
 list systemNotecardLines = [];
 
 
-string agentName;
+string charactername;
 string model;
 string system;
 
@@ -283,12 +283,12 @@ default
         // Verify the notecard exists
         if (llGetInventoryType(parametersNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found. Please add it to the object.");
             return;
         }
         if (llGetInventoryType(systemNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found. Please add it to the object.");
             return;
         }
         // Start reading the notecard from the first line
@@ -316,9 +316,9 @@ default
                     string paramName = llList2String(splits, 0);
                     string value = llList2String(splits, 1);
 
-                    if (paramName == "agentName") 
+                    if (paramName == "charactername") 
                     {
-                        agentName = value;
+                        charactername = value;
                     }
                     if (paramName == "model") 
                     {
@@ -345,7 +345,7 @@ default
                 
                 // Now you have the entire notecard as a single string
                 llOwnerSay("Parameter notecard content loaded:");
-                llOwnerSay("agentName: " + agentName);
+                llOwnerSay("charactername: " + charactername);
                 llOwnerSay("model: " + model);
                 
                 finish_optionstring();
@@ -397,7 +397,7 @@ default
     touch_start(integer num_detected)
     {
         if (notecardsCompleted != ALL_NOTECARDS_COMPLETED) {
-            llSay(0, "Error: Configuration notecards not loaded properly. Please check that 'llm-parameters' and 'llm-system' notecards exist and contain valid data.");
+            llSay(0, "Error: Configuration notecards not loaded properly. Please check that 'llm-parameters' and 'llm-system' notecards exist and contain valid data. Reset the script for more details.");
             return;
         }
         if (validationInProgress == 1) {
@@ -412,14 +412,14 @@ default
             llSay(0, "Sorry I am currently in use by " + llKey2Name(user) + ". Please await your turn." );
         } else if (user!=NULL_KEY and llDetectedKey(0) == user ) {
             if (pollingResponse == 1) {
-                llInstantMessage(user, "Conversation in progress, I am waiting for the generated response. You can abort this conversation with ExitConversation on channel " + command_channel);
+                llInstantMessage(user, "Conversation in progress, I am waiting for the generated response. You can abort this conversation on channel" + command_channel + " with this command: ExitConversation");
             } else {
                 llInstantMessage(user, "You can send more messages.");
             }            
         } else {
             user = llDetectedKey(0);
             
-            llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to " + agentName + ". I can deal only with one user at a time We can have a conversation with many messages."); 
+            llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to " + charactername + ". I can deal only with one user at a time We can have a conversation with many messages."); 
             username = llKey2Name(user);
             
             
@@ -486,7 +486,7 @@ default
            
             if (local_conversation_key != conversation_key){
                 conversation_key = local_conversation_key;
-                llSay(0, "Please enter something you want to say to " + agentName + " in chat.");
+                llSay(0, "Please enter something you want to say to " + charactername + " in chat.");
                 // new conversation was started on backend
                 conversation_time=0;
                 conversation_message_id=0;

@@ -22,7 +22,6 @@ class GenerateRequest(BaseModel):
 class ConversationStartRequest(BaseModel):
     username: str
     model: str
-    regionName: str
     system_instructions: Optional[str] = ""
     options: Optional[dict] = {}
 

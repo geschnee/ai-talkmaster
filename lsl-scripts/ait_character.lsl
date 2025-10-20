@@ -4,7 +4,7 @@
 // When it's name is mentioned by a whitelisted user or character, it sends a request to the AI Talkmaster and waits for the generated response, which is then said by the character.
 // More details at https://github.com/geschnee/ai-talkmaster
 
-integer config_channel = 8;
+integer command_channel = 8;
 
 integer com_channel = 0;
 integer listener_public_channel;
@@ -44,11 +44,11 @@ list systemNotecardLines = [];
 
 
 string charactername;
-string model;
+string model="";
 string systemInstructions;
 string audio_instructions;
-string audio_voice;
-string audio_model;
+string audio_voice="";
+string audio_model="";
 
 string optionstring;
 list optionStringParts=[];
@@ -67,8 +67,7 @@ string join_key;
 key modelsValidationId;
 key voicesValidationId;
 integer modelsValidated = 0;
-integer voicesValidated = 0;
-integer validationInProgress = 0;
+integer audioIsValidated = 0;
 
 integer queue_code= 0;
 
@@ -231,12 +230,6 @@ string ReplaceQuotesForJson(string input)
 
 validateModel(string modelToValidate)
 {
-    if (validationInProgress) {
-        llOwnerSay("Validation already in progress, please wait...");
-        return;
-    }
-    
-    validationInProgress = 1;
     llOwnerSay("Validating model: " + modelToValidate);
     modelsValidationId = llHTTPRequest(ait_endpoint + "/chat_models", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
@@ -245,7 +238,6 @@ validateModel(string modelToValidate)
 // Function to validate audio parameters against /voices endpoint
 validateAudioParameters(string voiceToValidate, string audioModelToValidate)
 {
-    validationInProgress = 1;
     llOwnerSay("Validating audio voice: " + voiceToValidate + " and audio model: " + audioModelToValidate);
     voicesValidationId = llHTTPRequest(ait_endpoint + "/audio_models", 
         [HTTP_METHOD, "GET", HTTP_MIMETYPE, "application/json"], "");
@@ -265,13 +257,32 @@ integer isValueInJsonArray(string jsonString, string value)
 // Function to validate all parameters after they are loaded
 validateAllParameters()
 {
-    if (model == "" || audio_voice == "" || audio_model == "") {
-        llOwnerSay("Error: Some parameters are missing. Cannot validate.");
+    if (charactername == "") {
+        llOwnerSay("Error: charactername is missing. Cannot validate.");
         return;
     }
-    
     llOwnerSay("Starting parameter validation...");
-    validateModel(model);
+    
+    // Only validate model if it's not empty
+    if (model != "") {
+        validateModel(model);
+    } else {
+        llOwnerSay("Model parameter is empty, skipping model validation, the default will be used.");
+        modelsValidated = 1; // Consider empty model as valid
+    }
+    // Check if we need to validate audio parameters
+    if (audio_voice != "" || audio_model != "") {
+        validateAudioParameters(audio_voice, audio_model);
+    } else {
+        llOwnerSay("Audio parameters are empty, skipping audio validation");
+        audioIsValidated = 1; // Consider empty audio parameters as valid
+    }
+}
+
+printInfo(){
+    llOwnerSay("on channel " + command_channel + " to activate type the following: activate " + charactername);
+    llOwnerSay("on channel " + command_channel + " to activate only this actor, type the following: spotlight " + charactername);
+    llOwnerSay("on channel " + command_channel + " to activate all actors, type the following: ActivateAllCharacters");
 }
 
 default
@@ -281,17 +292,17 @@ default
         // Verify the notecard exists
         if (llGetInventoryType(parametersNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found. Please add it to the object.");
             return;
         }
         if (llGetInventoryType(systemNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + systemNotecardName + "' not found. Please add it to the object.");
             return;
         }
         if (llGetInventoryType(joinkeyNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + joinkeyNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + joinkeyNotecardName + "' not found. Please add it to the object.");
             return;
         }
         // Start reading the notecard from the first line
@@ -304,9 +315,18 @@ default
 
 
 
-        llListen(config_channel, "","","");
+        llListen(command_channel, "","","");
 
         queue_code = 0;
+    }
+
+    touch_start(integer total_number)
+    {
+        if (modelsValidated && audioIsValidated) {
+            printInfo();
+        } else {
+            llOwnerSay("Configuration not validated. Please check that 'llm-parameters', 'llm-system' and 'join_key' notecards exist and contain valid data. Reset the script for more details.");
+        }
     }
 
     dataserver(key query_id, string data)
@@ -378,9 +398,7 @@ default
                 
                 validateAllParameters();
 
-                llOwnerSay("on channel " + config_channel + " to activate type the following: activate " + charactername);
-                llOwnerSay("on channel " + config_channel + " to activate only this actor, type the following: spotlight " + charactername);
-                llOwnerSay("on channel " + config_channel + " to activate all actors, type the following: ActivateAllCharacters");
+                
             }
         }
         if (query_id == systemNotecardQueryId)
@@ -408,7 +426,6 @@ default
                 llOwnerSay("system: " + entireContent);
 
                 systemInstructions = ReplaceQuotesForJson(entireContent);
-                
             }
         }
         if (query_id == joinkeyNotecardQueryId)
@@ -453,7 +470,7 @@ default
             transmitMessage(username, message);
             
         }
-        if (channel == config_channel) {
+        if (channel == command_channel) {
             if (id != llGetOwner()) {
                 llInstantMessage(id, "You are not allowed to use config commands.");
                 return;
@@ -511,7 +528,6 @@ default
         // Handle validation responses
         if (request_id == modelsValidationId) {
             if (status == 200) {
-                llOwnerSay("Models validation response received");
                 string chatModels = llJsonGetValue(body, ["chat_models"]);
                 if (isValueInJsonArray(chatModels, model)) {
                     llOwnerSay("✓ Model '" + model + "' is valid");
@@ -520,54 +536,57 @@ default
                     llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
                     modelsValidated = 0;
                 }
-                
-                // After model validation, validate audio parameters
-                if (modelsValidated) {
-                    validateAudioParameters(audio_voice, audio_model);
-                } else {
-                    validationInProgress = 0;
+
+                // Final validation summary
+                if (modelsValidated && audioIsValidated) {
+                    llOwnerSay("✓ All parameters validated successfully!");
                 }
+        
             } else {
                 llOwnerSay("Error validating model: HTTP " + (string)status + " - " + body);
-                validationInProgress = 0;
             }
             return;
         }
         
         if (request_id == voicesValidationId) {
             if (status == 200) {
-                llOwnerSay("Voices validation response received");
                 string validVoices = llJsonGetValue(body, ["allowed_voices"]);
                 string audioModels = llJsonGetValue(body, ["audio_models"]);
                 
-                integer voiceValid = isValueInJsonArray(validVoices, audio_voice);
-                integer audioModelValid = isValueInJsonArray(audioModels, audio_model);
-                
-                if (voiceValid) {
-                    llOwnerSay("✓ Audio voice '" + audio_voice + "' is valid");
+                integer voiceValid=0;
+                if (audio_voice!=""){
+                    voiceValid = isValueInJsonArray(validVoices, audio_voice);
+                    if (voiceValid) {
+                        llOwnerSay("✓ Audio voice '" + audio_voice + "' is valid");
+                    } else {
+                        llOwnerSay("✗ Audio voice '" + audio_voice + "' is NOT valid. Available voices: " + validVoices);
+                    }
                 } else {
-                    llOwnerSay("✗ Audio voice '" + audio_voice + "' is NOT valid. Available voices: " + validVoices);
+                    voiceValid = 1;
                 }
                 
-                if (audioModelValid) {
-                    llOwnerSay("✓ Audio model '" + audio_model + "' is valid");
+                integer audioModelValid = 0;
+                if (audio_model != ""){
+                    audioModelValid = isValueInJsonArray(audioModels, audio_model);
+                    if (audioModelValid) {
+                        llOwnerSay("✓ Audio model '" + audio_model + "' is valid");
+                    } else {
+                        llOwnerSay("✗ Audio model '" + audio_model + "' is NOT valid. Available audio models: " + audioModels);
+                    }
                 } else {
-                    llOwnerSay("✗ Audio model '" + audio_model + "' is NOT valid. Available audio models: " + audioModels);
+                    audioModelValid = 1;
                 }
                 
-                voicesValidated = (voiceValid && audioModelValid) ? 1 : 0;
+                
+                audioIsValidated = (voiceValid && audioModelValid) ? 1 : 0;
                 
                 // Final validation summary
-                if (modelsValidated && voicesValidated) {
+                if (modelsValidated && audioIsValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
-                } else {
-                    llOwnerSay("✗ Parameter validation failed. Please check your configuration.");
                 }
                 
-                validationInProgress = 0;
             } else {
                 llOwnerSay("Error validating audio parameters: HTTP " + (string)status + " - " + body);
-                validationInProgress = 0;
             }
             return;
         }

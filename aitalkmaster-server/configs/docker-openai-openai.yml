@@ -3,6 +3,11 @@ server:
   host: "0.0.0.0"
   port: 6000
   log_file: "./logs/logfile.txt"
+  usage:
+    use_rate_limit: true
+    rate_limit_xForwardedFor: false
+    rate_limit_per_day: 50000
+    audio_cost_per_second: 100
 
 # OpenAI Configuration
 chat_client:

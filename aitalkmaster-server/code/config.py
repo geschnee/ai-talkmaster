@@ -28,11 +28,21 @@ class AudioClientMode(Enum):
     KOKORO = "kokoro"
 
 @dataclass
+class UsageConfig:
+    """Usage and rate limiting configuration"""
+    use_rate_limit: bool = False
+    rate_limit_xForwardedFor: bool = False
+    rate_limit_per_day: int = 100000
+    audio_cost_per_second: float = 100
+
+@dataclass
 class ServerConfig:
     """Server configuration settings"""
     host: str = "0.0.0.0"
     port: int = 6000
     log_file: str = "logfile.txt"
+    usage: UsageConfig = None
+    
 
 
 @dataclass
@@ -120,10 +130,18 @@ class Config:
         """Setup configuration objects from loaded data"""
         # Server configuration
         server_data = self.config_data.get('server', {})
+        usage_data = server_data.get('usage', {})
+        
         self.server = ServerConfig(
             host=server_data.get('host'),
             port=server_data.get('port'),
-            log_file=server_data.get('log_file')
+            log_file=server_data.get('log_file'),
+            usage=UsageConfig(
+                use_rate_limit=usage_data.get('use_rate_limit'),
+                rate_limit_xForwardedFor=usage_data.get('rate_limit_xForwardedFor'),
+                rate_limit_per_day=usage_data.get('rate_limit_per_day'),
+                audio_cost_per_second=usage_data.get('audio_cost_per_second')
+            )
         )
         
         # Chat client configuration
@@ -278,7 +296,13 @@ class Config:
             'server': {
                 'host': self.server.host,
                 'port': self.server.port,
-                'log_file': self.server.log_file
+                'log_file': self.server.log_file,
+                'usage': {
+                    'use_rate_limit': self.server.usage.use_rate_limit,
+                    'rate_limit_xForwardedFor': self.server.usage.rate_limit_xForwardedFor,
+                    'rate_limit_per_day': self.server.usage.rate_limit_per_day,
+                    'audio_cost_per_second': self.server.usage.audio_cost_per_second
+                }
             },
             'chat_client': {
                 'mode': self.chat_client.mode,

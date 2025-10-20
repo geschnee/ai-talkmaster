@@ -1,8 +1,10 @@
-agentName:Oracle
+charactername:Oracle
 model:llama3.2
 audio_model:kokoro
 audio_instructions:You are talking with a tired voice.
 audio_voice:af_bella
+
+// the parameters audio_model, audio_instructions and audio_voice are not required for Generate.lsl and Conversation.lsl
 
 // parameters from https://github.com/ollama/ollama/blob/main/docs/modelfile.md#parameter
 // do not use quotation marks for stop parameter

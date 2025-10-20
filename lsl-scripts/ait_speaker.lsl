@@ -7,8 +7,7 @@
 // This script is intended to be used on a (HUD) wearable object.
 
 
-integer configChannel = 8;
-integer com_channel = 0;
+integer command_channel = 8;
 
 // State management
 integer isActive = 0; // 0 = inactive, 1 = active
@@ -252,7 +251,7 @@ state inactive
     state_entry()
     {
         llOwnerSay("AIT Speaker: INACTIVE state");
-        llOwnerSay("Use channel " + configChannel + " or click the object for changing the state");
+        llOwnerSay("Use channel " + command_channel + " or click the object for changing the state");
         
         // Set visual state to inactive
         isActive = 0;
@@ -261,12 +260,12 @@ state inactive
         // Initialize property reading
         if (llGetInventoryType(parametersNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + parametersNotecardName + "' not found. Please add it to the object.");
             return;
         }
         if (llGetInventoryType(joinkeyNotecardName) != INVENTORY_NOTECARD)
         {
-            llOwnerSay("Error: Notecard '" + joinkeyNotecardName + "' not found.");
+            llOwnerSay("Error: Notecard '" + joinkeyNotecardName + "' not found. Please add it to the object.");
             return;
         }
         
@@ -276,7 +275,7 @@ state inactive
         joinkeyNotecardQueryId = llGetNotecardLine(joinkeyNotecardName, 0);
         
         // Listen on config channel
-        llListen(configChannel, "","","");
+        llListen(command_channel, "","","");
     }
 
     listen(integer channel, string name, key id, string message)
@@ -286,7 +285,7 @@ state inactive
             return;
         }
         
-        if (channel == configChannel) {
+        if (channel == command_channel) {
             // Handle dialog responses
             if (message == "ActivateSpeaker") {
                 llOwnerSay("Activating AIT Speaker...");
@@ -477,14 +476,14 @@ state active
     {
         llOwnerSay("AIT Speaker: ACTIVE state");
         llOwnerSay("Will forward your messages on channel 0 to AIT and turn it into voice");
-        llOwnerSay("Use channel " + configChannel + " or click the object for changing the state");
+        llOwnerSay("Use channel " + command_channel + " or click the object for changing the state");
         
         // Set visual state to active
         isActive = 1;
         updateVisualState();
         
         // Listen on all channels
-        llListen(configChannel, "","","");
+        llListen(command_channel, "","","");
         llListen(0, "","","");
     }
 
@@ -495,7 +494,7 @@ state active
             return;
         }
         
-        if (channel == configChannel) {
+        if (channel == command_channel) {
             // Handle dialog responses
             if (message == "DeactivateSpeaker") {
                 llOwnerSay("Deactivating AIT Speaker...");
@@ -576,12 +575,12 @@ showDialog(key user)
         llDialog(user, 
             "AIT Speaker - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\n",
             ["DeactivateSpeaker", "Close"], 
-            configChannel);
+            command_channel);
     } else {
         // Inactive state dialog
         llDialog(user, 
             "AIT Speaker - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nPress activate to forward your chat messages on channel 0 to AIT audio stream.",
             ["ActivateSpeaker", "Close"], 
-            configChannel);
+            command_channel);
     }
 }

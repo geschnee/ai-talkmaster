@@ -1,8 +1,10 @@
 import requests
 from functools import wraps
 from fastapi.responses import JSONResponse
+from fastapi import Request
 
-from code.shared import config
+from code.shared import config, log
+from code.rate_limiter import rate_limit_exceeded, get_ip_address_for_rate_limit
 
 def check_chat_model(model: str) -> tuple[bool, list]:
     # Get available models from config
@@ -32,70 +34,103 @@ def check_audio_model(model: str) -> tuple[bool, list]:
 
 def validate_chat_model_decorator(func):
     @wraps(func)
-    def wrapper(request, *args, **kwargs):
+    def wrapper(request_model, fastapi_request: Request, *args, **kwargs):
         # Validate chat model
-        if request.model == "":
-            request.model = config.chat_client.default_model
+        if request_model.model == "":
+            request_model.model = config.chat_client.default_model
 
-        is_valid_model, available_models = check_chat_model(request.model)
+        is_valid_model, available_models = check_chat_model(request_model.model)
         if not is_valid_model:
             return JSONResponse(
                 status_code=400,
                 content={
-                    "error": f"Invalid chat model: {request.model}",
+                    "error": f"Invalid chat model: {request_model.model}",
                     "available_models": available_models
                 }
             )
         
         # If validation passes, call the original function
-        return func(request, *args, **kwargs)
+        return func(request_model, fastapi_request, *args, **kwargs)
     
     return wrapper
 
-def validate_audio_voice_decorator(func):
+def validate_audio_decorator(func):
 
     @wraps(func)
-    def wrapper(request, *args, **kwargs):
-        # Validate audio voice
-        
-        if request.audio_voice == "":
-            request.audio_voice = config.audio_client.default_voice
-            
-        is_valid_voice, allowed_voices = check_audio_voice(request.audio_voice)
+    def wrapper(request_model, fastapi_request: Request, *args, **kwargs):
+
+
+        if config.audio_client is None:
+            # no need for audio validation
+            return func(request_model, fastapi_request, *args, **kwargs)
+
+        # Validate audio model
+        if request_model.audio_model == "":
+            request_model.audio_model = config.audio_client.default_model
+
+        if request_model.audio_voice == "":
+            request_model.audio_voice = config.audio_client.default_voice
+
+
+        is_valid_audio_model, available_audio_models = check_audio_model(request_model.audio_model)
+        if not is_valid_audio_model:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": f"Invalid audio model: {request_model.audio_model}",
+                    "available_audio_models": available_audio_models
+                }
+            )
+
+        is_valid_voice, allowed_voices = check_audio_voice(request_model.audio_voice)
         if not is_valid_voice:
             return JSONResponse(
                 status_code=400,
                 content={
-                    "error": f"Invalid audio voice: {request.audio_voice}",
+                    "error": f"Invalid audio voice: {request_model.audio_voice}",
                     "allowed_voices": allowed_voices
                 }
             )
         
         # If validation passes, call the original function
-        return func(request, *args, **kwargs)
+        return func(request_model, fastapi_request, *args, **kwargs)
     
     return wrapper
 
-def validate_audio_model_decorator(func):
 
+
+
+def rate_limit_decorator(func):
+    """
+    Decorator that checks if the request is within the weighted rate limit.
+    """
     @wraps(func)
-    def wrapper(request, *args, **kwargs):
-        # Validate audio model
-        if request.audio_model == "":
-            request.audio_model = config.audio_client.default_model
+    def wrapper(request_model, fastapi_request: Request, *args, **kwargs):
+        log(f'Rate limit check for IP: {fastapi_request.client.host}')
 
-
-        is_valid_audio_model, available_audio_models = check_audio_model(request.audio_model)
-        if not is_valid_audio_model:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": f"Invalid audio model: {request.audio_model}",
-                    "available_audio_models": available_audio_models
-                }
-            )
+        if config.server.usage.use_rate_limit:
+            ip_address, error = get_ip_address_for_rate_limit(fastapi_request)
+            if error:
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": error
+                    }
+                )
         
-        # If validation passes, call the original function
-        return func(request, *args, **kwargs)
+            if rate_limit_exceeded(ip_address):
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": "Daily rate limit exceeded",
+                        "ip_address": ip_address
+                    }
+                )
+            else:
+                return func(request_model, fastapi_request, *args, **kwargs)
+
+        else:
+            return func(request_model, fastapi_request, *args, **kwargs)
+
     
     return wrapper

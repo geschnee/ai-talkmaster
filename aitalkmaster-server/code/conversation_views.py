@@ -6,10 +6,12 @@ from typing import Optional
 from dataclasses import dataclass
 
 from code.shared import app, config, log
-from code.validation_decorators import validate_chat_model_decorator
+from code.validation_decorators import validate_chat_model_decorator, rate_limit_decorator
 from code.request_models import ConversationStartRequest, ConversationGetMessageResponseRequest, ConversationPostMessageRequest
 from code.openai_response import CharacterResponse
 from code.config import ChatClientMode
+from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
+from fastapi import Request
 
 history_queue = []
 MAX_CHATS_HISTORY = 1000
@@ -132,16 +134,17 @@ def getHistoryElement(conversation_key):
 
 @app.post("/conversation/start")
 @validate_chat_model_decorator
-def startConversation(request: ConversationStartRequest):
+@rate_limit_decorator
+def startConversation(request_model: ConversationStartRequest, fastapi_request: Request):
     try:
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} startConversation: {request.username}, {request.model}, {request.regionName}, {request.options}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} startConversation: {request_model.username}, {request_model.model}, {request_model.options}')
 
         while len(history_queue)>=MAX_CHATS_HISTORY:
             history_queue.pop()
 
         conversation_key = str(uuid.uuid4())
 
-        history_queue.append(HistoryElement(conversation_key, request.username, request.model, request.options, request.system_instructions))
+        history_queue.append(HistoryElement(conversation_key, request_model.username, request_model.model, request_model.options, request_model.system_instructions))
 
         return JSONResponse(
             status_code=200,
@@ -157,25 +160,25 @@ def startConversation(request: ConversationStartRequest):
 
 
 @app.get("/conversation/getMessageResponse")
-def conversationGetMessage(request: ConversationGetMessageResponseRequest):
+def conversationGetMessage(request_model: ConversationGetMessageResponseRequest, fastapi_request: Request):
     try:
-        historyElement = getHistoryElement(conversation_key=request.conversation_key)
+        historyElement = getHistoryElement(conversation_key=request_model.conversation_key)
         if historyElement == None:
             return JSONResponse(
                 status_code=400,
-                content={"message": f"no conversation found with key: {request.conversation_key}"}
+                content={"message": f"no conversation found with key: {request_model.conversation_key}"}
             )
 
-        response = historyElement.findResponseByMessageId(request.message_id)
+        response = historyElement.findResponseByMessageId(request_model.message_id)
 
         if response is None:
             return JSONResponse( 
                 status_code=425,
-                content={"message": "Waiting for message response", "conversation_key": request.conversation_key})
+                content={"message": "Waiting for message response", "conversation_key": request_model.conversation_key})
 
         return JSONResponse(
             status_code=200,
-            content={"response": response.content, "message_id": request.message_id, "conversation_key": request.conversation_key}
+            content={"response": response.content, "message_id": request_model.message_id, "conversation_key": request_model.conversation_key}
         )
 
     except Exception as e:
@@ -184,7 +187,7 @@ def conversationGetMessage(request: ConversationGetMessageResponseRequest):
             content=f"Internal server error getMessage: {e}"
         )
 
-def get_response_ollama_conversation(he: HistoryElement) -> str:
+def get_response_ollama_conversation(he: HistoryElement, fastapi_request: Request) -> str:
     full_dialog = []
     full_dialog.append({
         "role": "system",
@@ -194,10 +197,14 @@ def get_response_ollama_conversation(he: HistoryElement) -> str:
         full_dialog.append(d)
 
     response = config.get_or_create_ollama_chat_client().chat(model=he.model, messages = full_dialog, options=he.options)
-    
+
+    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
+    increment_resource_usage(ip_address, response["eval_count"])
+
+
     return response["message"]["content"]
 
-def get_response_openai_conversation(he: HistoryElement) -> str:
+def get_response_openai_conversation(he: HistoryElement, fastapi_request: Request) -> str:
     response = config.get_or_create_openai_chat_client().responses.parse(
         model=he.model,
         input=he.getDialog(),
@@ -206,28 +213,30 @@ def get_response_openai_conversation(he: HistoryElement) -> str:
         store=False
     )
 
+    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
+    increment_resource_usage(ip_address, response.usage.total_tokens)
+
     return response.output_parsed.text_response # type: ignore
 
 @app.post("/conversation/postMessage")
-def conversationPostMessage(request: ConversationPostMessageRequest):
+@rate_limit_decorator
+def conversationPostMessage(request_model: ConversationPostMessageRequest, fastapi_request: Request):
     try:
-        historyElement = getHistoryElement(conversation_key=request.conversation_key)
+        historyElement = getHistoryElement(conversation_key=request_model.conversation_key)
         if historyElement == None:
             return JSONResponse(
                 status_code=400,
-                content={"message": f"no conversation found with key: {request.conversation_key}"}
+                content={"message": f"no conversation found with key: {request_model.conversation_key}"}
             )
 
 
-        historyElement.addMessage(request.message, request.message_id)
+        historyElement.addMessage(request_model.message, request_model.message_id)
         
 
         if config.chat_client.mode == ChatClientMode.OPENAI:
-            response_msg = get_response_openai_conversation(historyElement)
+            response_msg = get_response_openai_conversation(historyElement, fastapi_request)
         elif config.chat_client.mode == ChatClientMode.OLLAMA:
-            log(f'before get_response_ollama')
-            response_msg = get_response_ollama_conversation(historyElement)
-            log(f'obtained response_msg from ollama: {response_msg}')
+            response_msg = get_response_ollama_conversation(historyElement, fastapi_request)
         else:
             return JSONResponse(
                 status_code=500,
@@ -236,13 +245,13 @@ def conversationPostMessage(request: ConversationPostMessageRequest):
                 }
             )
 
-        historyElement.addResponse(response_msg, request.message_id)
+        historyElement.addResponse(response_msg, request_model.message_id)
 
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} conversation/postMessage: username: {historyElement.username} data:{request.model_dump()} historyElement:{historyElement}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} conversation/postMessage: username: {historyElement.username} data:{request_model.model_dump()} historyElement:{historyElement}')
         
         return JSONResponse( 
             status_code=200,
-            content={"response": response_msg, "message_id": request.message_id, "conversation_key": request.conversation_key}
+            content={"response": response_msg, "message_id": request_model.message_id, "conversation_key": request_model.conversation_key}
         )
 
     except Exception as e:

@@ -1,4 +1,5 @@
 from fastapi.responses import JSONResponse
+from fastapi import Request
 import time
 from pathlib import Path
 import uuid
@@ -11,13 +12,14 @@ import traceback
 from code.config import ChatClientMode, AudioClientMode
 from code.aitalkmaster_utils import AitalkmasterInstance, remove_name, start_liquidsoap
 from code.request_models import AitPostMessageRequest, AitMessageResponseRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest
-from code.validation_decorators import validate_chat_model_decorator, validate_audio_voice_decorator, validate_audio_model_decorator
+from code.validation_decorators import validate_chat_model_decorator, validate_audio_decorator, rate_limit_decorator
 from code.shared import app, config, log
 from pydub import AudioSegment
 from code.openai_response import CharacterResponse
 from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 import io
+from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
 
 active_aitalkmaster_instances = {}
 finished_aitalkmaster_instances = []
@@ -38,7 +40,7 @@ def generate_sequence_str(join_key: str):
     sequence_str = f"{sequence_number:03d}"
     return sequence_str
 
-def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: str, audio_instructions: str):
+def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: str, audio_instructions: str, fastapi_request: Request):
     if config.audio_client.mode == AudioClientMode.OPENAI:
         response = config.get_or_create_openai_audio_client().audio.speech.create(
             model=audio_model,
@@ -47,6 +49,11 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
             instructions=audio_instructions,
             response_format="mp3",
             speed=1.0)
+        
+        
+        # log(f'headers: {response.response.headers}')
+        # the headers do not provide a direct "cost"
+        # we should use the duration of the audio to estimate the cost
     else:
         response = config.get_or_create_opensource_audio_client().audio.speech.create(
             model=audio_model,
@@ -55,10 +62,20 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
             instructions=audio_instructions,
             response_format="mp3",
             speed=1.0)
+
     with open(filename, "wb") as f:
         f.write(response.content)
 
+    # Get audio duration for rate limiting
     audio = AudioSegment.from_file(io.BytesIO(response.content), format="mp3")
+    duration_seconds = len(audio) / 1000.0  # pydub returns duration in milliseconds
+
+    log(f'duration_seconds: {duration_seconds}')
+    
+    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
+    # Use duration as weight for rate limiting (duration in seconds)
+    increment_resource_usage(ip_address, duration_seconds * config.server.usage.audio_cost_per_second)
+
     output_path = filename
     audio.export(output_path, format="mp3", bitrate="192k")
 
@@ -110,7 +127,7 @@ def move_audio_files_to_inactive(join_key: str):
         log(f'Error moving audio files for {join_key}: {e}')
         return False
 
-def get_response_ollama(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance) -> str:
+def get_response_ollama(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance, fastapi_request: Request) -> str:
     full_dialog = []
     full_dialog.append({
         "role": "system",
@@ -122,10 +139,18 @@ def get_response_ollama(request: AitPostMessageRequest, ait_instance: Aitalkmast
     response = config.get_or_create_ollama_chat_client().chat(model=request.model, messages = full_dialog, options=request.options)
     
     response_msg = remove_name(response["message"]["content"], request.charactername)
+
+  
+
+    log(f'response: {response}')
+    log(f'eval count: {response["eval_count"]}')
+
+    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
+    increment_resource_usage(ip_address, response["eval_count"])
     
     return response_msg
 
-def get_response_openai(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance) -> str:
+def get_response_openai(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance, fastapi_request: Request) -> str:
 
     response = config.get_or_create_openai_chat_client().responses.parse(
         model=request.model,
@@ -134,6 +159,9 @@ def get_response_openai(request: AitPostMessageRequest, ait_instance: Aitalkmast
         text_format=CharacterResponse,
         store=False
     )
+
+    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
+    increment_resource_usage(ip_address, response.usage.total_tokens)
 
     return response.output_parsed.text_response # type: ignore
 
@@ -162,33 +190,33 @@ def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
 
 @app.post("/ait/postMessage")
 @validate_chat_model_decorator
-@validate_audio_voice_decorator
-@validate_audio_model_decorator
-def postaitMessage(request: AitPostMessageRequest):
+@validate_audio_decorator
+@rate_limit_decorator
+def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Request):
     try:
-        data_json = request.model_dump()
+        data_json = request_model.model_dump()
         log(f'postMessage data: {data_json}')
 
-        join_key = request.join_key
+        join_key = request_model.join_key
 
         ait_instance = get_or_create_ait_instance(join_key)
 
-        if ait_instance.contains_message_id(request.message_id):
+        if ait_instance.contains_message_id(request_model.message_id):
             return JSONResponse(
                 status_code=400,
                 content={
-                    "message_id": request.message_id, 
-                    "error": f'Invalid message ID, already exists in ait with key {request.join_key}'
+                    "message_id": request_model.message_id, 
+                    "error": f'Invalid message ID, already exists in ait with key {request_model.join_key}'
                 }
             )
         
-        ait_instance.addUserMessage(request.message, name=request.username, message_id=request.message_id)
+        ait_instance.addUserMessage(request_model.message, name=request_model.username, message_id=request_model.message_id)
         
 
         if config.chat_client.mode == ChatClientMode.OPENAI:
-            response_msg = get_response_openai(request, ait_instance)
+            response_msg = get_response_openai(request_model, ait_instance, fastapi_request)
         elif config.chat_client.mode == ChatClientMode.OLLAMA:
-            response_msg = get_response_ollama(request, ait_instance)
+            response_msg = get_response_ollama(request_model, ait_instance, fastapi_request)
         else:
             return JSONResponse(
                 status_code=500,
@@ -198,25 +226,25 @@ def postaitMessage(request: AitPostMessageRequest):
             )
 
         if config.audio_client is not None:
-            filename = build_filename(request)
+            filename = build_filename(request_model)
         else:
             filename = None
 
-        ait_instance.addResponse(response_msg, request.charactername, response_id=request.message_id, filename=filename)
+        ait_instance.addResponse(response_msg, request_model.charactername, response_id=request_model.message_id, filename=filename)
 
         if config.audio_client is not None:
-            save_audio(filename, response_msg, request.audio_voice or "", request.audio_model or "", request.audio_instructions or "")
-            save_metadata(filename, request.charactername, join_key)
+            save_audio(filename, response_msg, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", fastapi_request)
+            save_metadata(filename, request_model.charactername, join_key)
         
-            ait_instance.set_audio_created_at(request.message_id, time.time())
+            ait_instance.set_audio_created_at(request_model.message_id, time.time())
         
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage: data: {request.message} response: {response_msg}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage: data: {request_model.message} response: {response_msg}')
         
 
         return JSONResponse(
             status_code=200,
             content={
-                "message_id": request.message_id, 
+                "message_id": request_model.message_id, 
                 "response": response_msg
             }
         )
@@ -229,9 +257,10 @@ def postaitMessage(request: AitPostMessageRequest):
         )
 
 @app.get("/ait/getMessageResponse")
-def getaitMessageResponse(request: AitMessageResponseRequest):
+@rate_limit_decorator
+def getaitMessageResponse(request_model: AitMessageResponseRequest, fastapi_request: Request):
     try:
-        join_key = request.join_key
+        join_key = request_model.join_key
 
         if join_key in active_aitalkmaster_instances.keys():
             ait_instance = active_aitalkmaster_instances[join_key]
@@ -241,7 +270,7 @@ def getaitMessageResponse(request: AitMessageResponseRequest):
                 content=f"There was no conversation with the join_key: {join_key}"
             )
 
-        message_id = request.message_id
+        message_id = request_model.message_id
         
         for assistant_resp in ait_instance.assistant_responses:
             if assistant_resp.response_id == message_id:
@@ -281,9 +310,10 @@ def reset_aitalkmaster(join_key: str):
             del audio_sequence_counters[join_key]
 
 @app.post("/ait/resetJoinkey")
-def resetJoinkey(request: AitResetJoinkeyRequest):
+@rate_limit_decorator
+def resetJoinkey(request_model: AitResetJoinkeyRequest, fastapi_request: Request):
     try:
-        join_key = request.join_key
+        join_key = request_model.join_key
 
         if join_key in active_aitalkmaster_instances.keys():
             reset_aitalkmaster(join_key)
@@ -303,9 +333,9 @@ def resetJoinkey(request: AitResetJoinkeyRequest):
         )
 
 @app.post("/ait/generateAudio")
-@validate_audio_voice_decorator
-@validate_audio_model_decorator
-def generateAudio(request: AitGenerateAudioRequest):
+@validate_audio_decorator
+@rate_limit_decorator
+def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Request):
     try:
 
         if config.audio_client is None:
@@ -316,29 +346,29 @@ def generateAudio(request: AitGenerateAudioRequest):
                 }
             )
 
-        join_key = request.join_key
+        join_key = request_model.join_key
 
         _ = get_or_create_ait_instance(join_key) # This starts the audio stream if it is not already running
 
         # Create directory for the join_key if it doesn't exist
-        join_key_dir = Path(f'./generated-audio/active/{request.join_key}')
+        join_key_dir = Path(f'./generated-audio/active/{request_model.join_key}')
         join_key_dir.mkdir(parents=True, exist_ok=True)
         
-        sequence_str = generate_sequence_str(request.join_key)
+        sequence_str = generate_sequence_str(request_model.join_key)
         
         # Generate filename with sequence number
-        filename = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.username}_{request.message_id}_{request.audio_voice}_{str(uuid.uuid4())}.mp3'
+        filename = f'./generated-audio/active/{request_model.join_key}/{sequence_str}_{request_model.username}_{request_model.message_id}_{request_model.audio_voice}_{str(uuid.uuid4())}.mp3'
         
-        save_audio(filename, request.message, request.audio_voice, request.audio_model, request.audio_instructions)
+        save_audio(filename, request_model.message, request_model.audio_voice, request_model.audio_model, request_model.audio_instructions, fastapi_request)
 
-        save_metadata(filename, request.username, join_key)
+        save_metadata(filename, request_model.username, join_key)
         
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio: message: {request.message} -> {filename}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio: message: {request_model.message} -> {filename}')
         
         return JSONResponse(
             status_code=200,
             content={
-                "message_id": request.message_id,
+                "message_id": request_model.message_id,
                 "filename": filename,
                 "status": "success"
             }
@@ -350,7 +380,7 @@ def generateAudio(request: AitGenerateAudioRequest):
         return JSONResponse(
             status_code=500,
             content={
-                "message_id": request.message_id,
+                "message_id": request_model.message_id,
                 "error": f"Internal server error: {str(e)}"
             }
         )
