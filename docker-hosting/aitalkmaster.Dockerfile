@@ -24,7 +24,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the Python modules
 COPY ./aitalkmaster-server .
 
-COPY ./fallback-audio ./fallback-audio
 
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash app

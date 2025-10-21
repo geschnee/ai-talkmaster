@@ -76,6 +76,7 @@ class IcecastClientConfig:
     port: int = 8000
     admin_user: str = "admin"
     admin_password: str = "password"
+    stream_endpoint_prefix: str = ""
 
 
 @dataclass
@@ -206,6 +207,7 @@ class Config:
                 host=icecast_client_data.get('host'),
                 port=icecast_client_data.get('port'),
                 admin_password=icecast_client_data.get('admin_password'),
+                stream_endpoint_prefix=icecast_client_data.get('stream_endpoint_prefix'),
             )
         else:
             self.icecast_client = None
@@ -326,7 +328,8 @@ class Config:
             'icecast_client': {
                 'host': self.icecast_client.host,
                 'port': self.icecast_client.port,
-                'admin_password': self.icecast_client.admin_password
+                'admin_password': self.icecast_client.admin_password,
+                'stream_endpoint_prefix': self.icecast_client.stream_endpoint_prefix
             } if self.icecast_client else None,
             'aitalkmaster': {
                 'join_key_keep_alive_list': self.aitalkmaster.join_key_keep_alive_list

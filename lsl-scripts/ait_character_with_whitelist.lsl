@@ -19,8 +19,7 @@ string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 
 float conversation_time=0;
-integer conversation_message_id= 0;
-integer pollingResponse=0;
+integer pollingForResponse=0;
 float polling_start_time = 0.0;
 float polling_timeout = 300.0; // Stop polling after 5 minutes
 
@@ -70,10 +69,11 @@ string join_key;
 // Validation variables
 key modelsValidationId;
 key voicesValidationId;
+key startConversationId;
 integer modelsValidated = 0;
 integer audioIsValidated = 0;
 
-integer queue_code= 0;
+key queue_code = llGenerateKey();
 
 integer isActive = 0;
 
@@ -204,18 +204,17 @@ post_message(string message_id, string username, string message) {
 }
 
 call_response(string message_id) {
-    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"join_key\": \""+join_key+"\",
-        \"message_id\": \""+message_id+"\"
-    }");
+    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\",\n        \"message_id\": \""+message_id+"\"\n    }");
+}
+
+start_conversation(){
+    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\"\n    }");
 }
 
 transmitMessage(string username, string message){
-    queue_code += 1;
-    string message_id = charactername + queue_code;
 
-    pollingMessageId = message_id;
-    pollingResponse=1;
+    pollingMessageId = llGenerateKey();
+    pollingForResponse=1;
     polling_start_time = llGetUnixTime(); // Record when polling started
 
     // do not listen to public channel when polling
@@ -223,7 +222,7 @@ transmitMessage(string username, string message){
 
     
 
-    post_message(message_id, username, ReplaceQuotesForJson(message));
+    post_message(pollingMessageId, username, ReplaceQuotesForJson(message));
 }
 
 string ReplaceQuotesForJson(string input)
@@ -284,6 +283,15 @@ validateAllParameters()
         llOwnerSay("Audio parameters are empty, skipping audio validation");
         audioIsValidated = 1; // Consider empty audio parameters as valid
     }
+    if (modelsValidated && audioIsValidated) {
+        start_conversation();
+    }
+}
+
+printInfo() {
+    llOwnerSay("on channel " + command_channel + " to activate type the following: activate " + charactername);
+    llOwnerSay("on channel " + command_channel + " to activate only this character, type the following: spotlight " + charactername);
+    llOwnerSay("on channel " + command_channel + " to activate all characters, type the following: ActivateAllCharacters");
 }
 
 default
@@ -326,16 +334,12 @@ default
 
 
         llListen(command_channel, "","","");
-
-        queue_code = 0;
     }
 
     touch_start(integer total_number)
     {
         if (modelsValidated && audioIsValidated) {
-            llOwnerSay("on channel " + command_channel + " to activate type the following: activate " + charactername);
-            llOwnerSay("on channel " + command_channel + " to activate only this actor, type the following: spotlight " + charactername);
-            llOwnerSay("on channel " + command_channel + " to activate all actors, type the following: ActivateAllCharacters");
+            printInfo();
         } else {
             llOwnerSay("Configuration not validated. Please reset the script and check its output.");
         }
@@ -410,9 +414,7 @@ default
                 
                 validateAllParameters();
 
-                llOwnerSay("on channel " + command_channel + " to activate type the following: activate " + charactername);
-                llOwnerSay("on channel " + command_channel + " to activate only this actor, type the following: spotlight " + charactername);
-                llOwnerSay("on channel " + command_channel + " to activate all actors, type the following: ActivateAllCharacters");
+                printInfo();
             }
         }
         if (query_id == systemNotecardQueryId)
@@ -506,8 +508,8 @@ default
 
             if (llListFindList(whitelisted_users_username, [username]) == -1){
 
-                queue_code += 1;
                 waitingForApprovalMessage = message;
+                queue_code = llGenerateKey();
                 
                 llOwnerSay(name + " sent message: " + message + " but is not in list of approved speakers, to approve the message, type command on channel " + command_channel + ": approve " + charactername + " " + queue_code );
 
@@ -593,6 +595,7 @@ default
                 // Final validation summary if audio already validated
                 if (modelsValidated && audioIsValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
+                    start_conversation();
                 }
             } else {
                 llOwnerSay("Error validating model: HTTP " + (string)status + " - " + body);
@@ -634,10 +637,16 @@ default
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
+                    start_conversation();
                 }
             } else {
                 llOwnerSay("Error validating audio parameters: HTTP " + (string)status + " - " + body);
             }
+            return;
+        }
+
+        if (request_id == startConversationId) {
+            llOwnerSay(body);
             return;
         }
         
@@ -648,13 +657,13 @@ default
             if (message_id!=(string) pollingMessageId){
                 return;
             }
-            if (pollingResponse==0){
+            if (pollingForResponse==0){
                 // we already recieved the info
                 return;
             }
 
             // start listening to chat messages again
-            pollingResponse=0;
+            pollingForResponse=0;
             listener_public_channel = llListen(0, "", "", "");
 
             string response = llJsonGetValue(body, ["response"]);
@@ -685,12 +694,12 @@ default
 
     timer()
     {
-        if (pollingResponse == 1) {
+        if (pollingForResponse == 1) {
             // Check if polling has timed out
             float current_time = llGetUnixTime();
             if (current_time - polling_start_time > polling_timeout) {
                 llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message: " + pollingMessageId);
-                pollingResponse = 0;
+                pollingForResponse = 0;
                 // Resume listening to public channel
                 listener_public_channel = llListen(0, "", "", "");
                 return;

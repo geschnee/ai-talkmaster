@@ -12,7 +12,7 @@ RUN apt-get update && \
 RUN mkdir -p /scripts /var/log/liquidsoap
 
 # Copy liquidsoap scripts
-COPY ./liquidsoap/start-stop-server.liq /scripts/start-stop-server.liq
+COPY ./start-stop-server.liq /scripts/start-stop-server.liq
 
 COPY ./fallback-audio /fallback-audio
 

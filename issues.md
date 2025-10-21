@@ -29,3 +29,10 @@ disabling burst-on-connect might reduce the delay!
 Result:
 
 testing showed no improvement when setting burst-on-connect to 0 for listening to the stream on Firestorm
+
+## join_key conflict
+
+What if two users decide to use the same join_key? (unintentionally or by malicious intent) They would essentially use the same conversation and interfere with each other.
+
+TODO join_key (change to a secret key (not visible from location MUSIC URL))
+displayname (name for Icecast URL, unique, cannot change for a join_key)

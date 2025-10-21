@@ -56,6 +56,9 @@ class AitMessageResponseRequest(BaseModel):
 class AitResetJoinkeyRequest(BaseModel):
     join_key: str
 
+class AitStartConversationRequest(BaseModel):
+    join_key: str
+
 class AitGenerateAudioRequest(BaseModel):
     join_key: str
     username: str

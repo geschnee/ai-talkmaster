@@ -2,7 +2,7 @@
 // Two states: active and inactive (default: inactive)
 // Listens on channel 8 (config) and channel 0
 // Only responds to owner's messages
-// When active the speakers messages get forwarded to AI Talkmaster and are simply voiced for the audio stream. that belongs to the join_key.
+// When active the speakers messages get forwarded to AI Talkmaster and are simply voiced for the audio stream.
 
 // This script is intended to be used on a (HUD) wearable object.
 
@@ -43,6 +43,7 @@ string join_key;
 
 // Validation variables
 key voicesValidationId;
+key startConversationId;
 integer voicesValidated = 0;
 integer validationInProgress = 0;
 integer validatingForActivation = 0;
@@ -223,6 +224,10 @@ integer isValueInJsonArray(string jsonString, string value)
     return FALSE;
 }
 
+start_conversation(){
+    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\"\n    }");
+}
+
 // Function to validate all parameters after they are loaded
 validateAllParameters()
 {
@@ -392,7 +397,7 @@ state inactive
         // Handle validation responses
         if (request_id == voicesValidationId) {
             if (status == 200) {
-                llOwnerSay("Voices validation response received");
+                
                 string validVoices = llJsonGetValue(body, ["allowed_voices"]);
                 string audioModels = llJsonGetValue(body, ["audio_models"]);
                 
@@ -433,6 +438,7 @@ state inactive
                     // Regular validation (during initialization)
                     if (voicesValidated) {
                         llOwnerSay("✓ All parameters validated successfully!");
+                        start_conversation();
                         // Show dialog after successful validation
                         showDialog(llGetOwner());
                     } else {
@@ -448,6 +454,11 @@ state inactive
                 }
                 validationInProgress = 0;
             }
+            return;
+        }
+
+        if (request_id == startConversationId) {
+            llOwnerSay(body);
             return;
         }
     }

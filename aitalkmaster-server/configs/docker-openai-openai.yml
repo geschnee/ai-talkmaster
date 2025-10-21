@@ -33,6 +33,7 @@ icecast_client:
   host: "icecast"
   port: 8000
   admin_password: "password"
+  stream_endpoint_prefix: "http://hg.hypergrid.net:7010/stream/" # This variable will only be shown in the /ait/startConversation response to inform the user where to listen to for audio.
 
 
 # Aitalkmaster Configuration

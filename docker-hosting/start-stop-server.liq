@@ -1,3 +1,7 @@
+# This is a liuidsoap script. It starts a tlnet server with 2 commands.
+# The telnet server starts or stops the audio stream.
+# The audio stream takes the files in a specific directory and sends them to Icecast. 
+
 settings.init.force_start := true
 settings.server.telnet.port := 1234
 settings.server.telnet := true
@@ -27,12 +31,8 @@ def create_stream(join_key) =
     def check(r)
       m = request.metadata(r)
       if l.last(m) == infinity then
-          #log.important("Will play #{m['initial_uri']}")
-          #print("Will play #{m['initial_uri']}")
           true
       else
-          #log.important("Rejecting #{m['initial_uri']}")
-          #print("Rejecting #{m['initial_uri']}")
           false
       end
     end
@@ -40,6 +40,7 @@ def create_stream(join_key) =
     def add_track_to_playlog(m)
       # the on_metadata and on_track methods are called during the playing of the audio file m
       if l.last(m) == infinity then
+        print("playing #{m['initial_uri']}")
         l.add(m)
       end
     end

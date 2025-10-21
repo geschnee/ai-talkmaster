@@ -10,11 +10,11 @@ We are also hosting 2 instances for public use.
 
 # Hosted AI Talkmaster
 
-We host 2 Instances of AI Talkmaster at http://hg.hypergrid.net, one using OpenSource exclusively and another using OpenAI exclusively. We are hosting the 2 instances for public use until 2026, then we might shutdown the OpenAI instance.
+We host 2 Instances of AI Talkmaster at http://hg.hypergrid.net, one using open-source exclusively and another using OpenAI exclusively. We are hosting the 2 instances for public use until 2026, then we might shutdown the OpenAI instance.
 
 They are running on the same domain at different ports:
 
-| Instance | OpenSource | OpenAI |
+| Instance | Open-Source | OpenAI |
 |----------|------------|--------|
 | AI Talkmaster Port | 6000 | 7000 |
 | AI Talkmaster URL | http://hg.hypergrid.net:6000 | http://hg.hypergrid.net:7000 |
@@ -22,24 +22,24 @@ They are running on the same domain at different ports:
 | Icecast Stream URL | http://hg.hypergrid.net:6010/stream/{join_key} | http://hg.hypergrid.net:7010/stream/{join_key} |
 | [Daily Usage Limit](#daily-usage-limit) | 1.000.000 Tokens per IP | 50.000 Tokens per IP |
 
-The lsl-scripts use the OpenSource instance.
+The scripts in [lsl-scripts](./lsl-scripts/) use the Open-Source instance, see ait_endpoint variable.
 
 # Information for using AI Talkmaster and LSL-Scripts in-world
 
 How to use the LSL-Scripts in-world:
-- select a script and place it on an object that you own
+1. select a script and place it on an object that you own
   - modify the ait_endpoint variable if you want (to your own AIT server or a [hosted AI Talkmaster](hosted-ai-talkmaster))
-- place the notecards on the object
+2. place the notecards on the object
   - the script will tell you which notecards are required
   - the script will validate the content of the notecards
-- click on the object to start using it
+3. click on the object to start using it
 
 
 There are a three kinds of interactions with the large language models: Generate, Conversation and AI Talkmaster. 
 Generate and Conversation are precursors of the multi-character conversations of AI Talkmaster. Generate replies to each message with a single message without keeping a history or extended context. Conversation allows for a back-and-forth with many consecutive messages that share a history/context.
 The AI Talkmaster conversations go a step further and allow many participants to be a part of the conversation. Furthermore the AI Talkmaster conversations are converted to a live [audio-stream](#audio-stream).
 
-There are example scripts for generating objects that interact with the AI Talkmaster server to generate text responses in the lsl-scripts directory.
+There are example scripts for generating objects that interact with the AI Talkmaster server in the [lsl-scripts directory](./lsl-scripts/).
 The scripts require a few different notecards to be present as parameterization of the scripts. The scripts validate the parameters on reset.
 
 | Conversation Type | Generate | Conversation | AI Talkmaster |
@@ -61,7 +61,7 @@ You are the famous Oracle of Delphi from ancient Greece. Reply as if you are tal
 
 ### llm-parameters
 
-This notecard contains all other parameters for the agent and parameterization of the large language model requests (when using [Ollama](https://github.com/ollama/ollama/blob/main/docs/modelfile.md#parameter)).
+This notecard contains all other parameters for the character and parameterization of the large language model requests (when using [Ollama](https://github.com/ollama/ollama/blob/main/docs/modelfile.md#parameter)).
 
 An [example notecard](lsl-scripts/llm-parameters.notecard) is located in the lsl-scripts directory. 
 
@@ -108,6 +108,7 @@ Chat with (multiple) AI characters.
 
 - `POST /ait/postMessage` - Send message to AI instance
 - `GET /ait/getMessageResponse` - Get AI response
+- `POST /ait/startConversation` - Start Conversation (and Audio stream) (it is not required to call this before postMessage or generateAudio)
 - `POST /ait/resetJoinkey` - Reset AI instance (history)
 - `POST /ait/generateAudio` - Generate audio from text
 
@@ -117,7 +118,9 @@ AI Talkmaster conversations can be streamed to Icecast when configured properly,
 http://{aitalkmasterUrl}:{IcecastPort}/stream/{join_key}
 
 
-This stream URL can be set as audio source for parcel sound in OpenSimulator regions.
+This stream URL can be set as audio source for parcel sound in OpenSimulator regions:
+
+![OpenSimulator Region Audio](./about/parcel_sound_music_url.JPG)
 
 
 ## Server return codes
@@ -133,8 +136,8 @@ This stream URL can be set as audio source for parcel sound in OpenSimulator reg
 
 You can host your own AI Talkmaster instance. It is recommended to use docker and requires some knowledge about networking, docker and IT in general.
 
-As a server hoster you can decide to use opensource large language models (e.g. Ollama) or closed source providers (e.g. OpenAI).
-Similarly the server hoster can decide to include or ommit the audio streaming features and can decide to use opensource (e.g. Kokoro) or closed source (e.g. OpenAI) to generate the audio. 
+As a server hoster you can decide to use open-source large language models (e.g. Ollama) or closed source providers (e.g. OpenAI).
+Similarly the server hoster can decide to include or ommit the audio streaming features and can decide to use open-source (e.g. Kokoro) or closed source (e.g. OpenAI) to generate the audio. 
 There are configuration examples included in this repository at docker/hosting and aitalkmaster-server/config for these four scenarios:
 - Ollama Text with Kokoro Audio
 - Ollama Text without Audio
@@ -142,11 +145,11 @@ There are configuration examples included in this repository at docker/hosting a
 - OpenAI Text without Audio
 
 
-## Opensource hosting
+## Open-source hosting
 
 ### Chat Client Ollama
 
-Ollama is a program for hosting opensource large language models.
+Ollama is a program for hosting open-source large language models.
 The Ollama python library is used here to send requests to Ollama.
 
 Set mode=="ollama" in the chat client config.
@@ -161,7 +164,7 @@ Ollama provides a lot of [options](https://github.com/ollama/ollama/blob/main/do
 
 ### Audio Client Kokoro
 
-Kokoro is a light-weight opensource model for generating audio. You can host your own Kokoro server using the docker-compose-kokoro.yml file.
+Kokoro is a light-weight open-source model for generating audio. You can host your own Kokoro server using the docker-compose-kokoro.yml file.
 
 ## Closed Source hosting
 

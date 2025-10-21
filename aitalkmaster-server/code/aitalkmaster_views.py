@@ -11,7 +11,7 @@ import traceback
 
 from code.config import ChatClientMode, AudioClientMode
 from code.aitalkmaster_utils import AitalkmasterInstance, remove_name, start_liquidsoap
-from code.request_models import AitPostMessageRequest, AitMessageResponseRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest
+from code.request_models import AitPostMessageRequest, AitMessageResponseRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest, AitStartConversationRequest
 from code.validation_decorators import validate_chat_model_decorator, validate_audio_decorator, rate_limit_decorator
 from code.shared import app, config, log
 from pydub import AudioSegment
@@ -327,6 +327,44 @@ def resetJoinkey(request_model: AitResetJoinkeyRequest, fastapi_request: Request
         )
     except Exception as e:
         log(f'exception in /ait/resetJoinkey: {e}')
+        return JSONResponse(
+            status_code=500,
+            content=f"Internal server error: {str(e)}"
+        )
+
+@app.post("/ait/startConversation")
+def startStream(request_model: AitStartConversationRequest, fastapi_request: Request):
+    try:
+        join_key = request_model.join_key
+
+        if join_key in active_aitalkmaster_instances.keys():
+            if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
+                stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+                return JSONResponse(
+                    status_code=200,
+                    content=f'AIT conversation with join_key {join_key} is already running. You can listen to the audio stream at {stream_url} as region audio or using VLC Media player.'
+                )
+            else:
+                return JSONResponse(
+                    status_code=200,
+                    content=f'AIT conversation with join_key {join_key} is already running.'
+                )
+        else:
+            _ = get_or_create_ait_instance(join_key)
+            if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
+                stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+                return JSONResponse(
+                    status_code=200,
+                    content=f'Started AIT conversation with join_key {join_key}. You can listen to the audio stream at {stream_url} as region audio or using VLC Media player.'
+                )
+            else:
+                return JSONResponse(
+                    status_code=200,
+                    content=f'Started AIT conversation with join_key {join_key}.'
+                )
+
+    except Exception as e:
+        log(f'exception in /ait/startConversation: {e}')
         return JSONResponse(
             status_code=500,
             content=f"Internal server error: {str(e)}"

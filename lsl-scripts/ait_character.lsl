@@ -1,7 +1,7 @@
 // This script is used to define a character for AI Talkmaster conversations.
 // The script can be in state active and inactive.
 // When active it listens to messages that mention the character's name.
-// When it's name is mentioned by a whitelisted user or character, it sends a request to the AI Talkmaster and waits for the generated response, which is then said by the character.
+// When it's name is mentioned by a user or character, it sends a request to the AI Talkmaster and waits for the generated response, which is then said by the character.
 // More details at https://github.com/geschnee/ai-talkmaster
 
 integer command_channel = 8;
@@ -19,8 +19,7 @@ string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 
 float conversation_time=0;
-integer conversation_message_id= 0;
-integer pollingResponse=0;
+integer pollingForResponse=0;
 float polling_start_time = 0.0;
 float polling_timeout = 300.0; // Stop polling after 5 minutes
 
@@ -66,10 +65,10 @@ string join_key;
 // Validation variables
 key modelsValidationId;
 key voicesValidationId;
+key startConversationId;
 integer modelsValidated = 0;
 integer audioIsValidated = 0;
 
-integer queue_code= 0;
 
 integer isActive = 0;
 
@@ -198,18 +197,18 @@ post_message(string message_id, string username, string message) {
 }
 
 call_response(string message_id) {
-    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"join_key\": \""+join_key+"\",
-        \"message_id\": \""+message_id+"\"
-    }");
+    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\",\n        \"message_id\": \""+message_id+"\"\n    }");
+}
+
+start_conversation(){
+    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\"\n    }");
 }
 
 transmitMessage(string username, string message){
-    queue_code += 1;
-    string message_id = charactername + queue_code;
+    string message_id = llGenerateKey();
 
     pollingMessageId = message_id;
-    pollingResponse=1;
+    pollingForResponse=1;
     polling_start_time = llGetUnixTime(); // Record when polling started
 
     // do not listen to public channel when polling
@@ -217,7 +216,7 @@ transmitMessage(string username, string message){
 
     
 
-    post_message(message_id, username, ReplaceQuotesForJson(message));
+    post_message(pollingMessageId, username, ReplaceQuotesForJson(message));
 }
 
 string ReplaceQuotesForJson(string input)
@@ -281,8 +280,8 @@ validateAllParameters()
 
 printInfo(){
     llOwnerSay("on channel " + command_channel + " to activate type the following: activate " + charactername);
-    llOwnerSay("on channel " + command_channel + " to activate only this actor, type the following: spotlight " + charactername);
-    llOwnerSay("on channel " + command_channel + " to activate all actors, type the following: ActivateAllCharacters");
+    llOwnerSay("on channel " + command_channel + " to activate only this character, type the following: spotlight " + charactername);
+    llOwnerSay("on channel " + command_channel + " to activate all characters, type the following: ActivateAllCharacters");
 }
 
 default
@@ -317,7 +316,6 @@ default
 
         llListen(command_channel, "","","");
 
-        queue_code = 0;
     }
 
     touch_start(integer total_number)
@@ -455,7 +453,7 @@ default
                 return;
             }
             // Don't process messages while waiting for HTTP response
-            if (pollingResponse == 1) {
+            if (pollingForResponse == 1) {
                 return;
             }
             if (llSubStringIndex(llToLower(message), llToLower(charactername)) == -1)
@@ -540,6 +538,7 @@ default
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
+                    start_conversation();
                 }
         
             } else {
@@ -583,11 +582,17 @@ default
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
+                    start_conversation();
                 }
                 
             } else {
                 llOwnerSay("Error validating audio parameters: HTTP " + (string)status + " - " + body);
             }
+            return;
+        }
+
+        if (request_id == startConversationId) {
+            llOwnerSay(body);
             return;
         }
         
@@ -598,13 +603,13 @@ default
             if (message_id!=(string) pollingMessageId){
                 return;
             }
-            if (pollingResponse==0){
+            if (pollingForResponse==0){
                 // we already recieved the info
                 return;
             }
 
             // start listening to chat messages again
-            pollingResponse=0;
+            pollingForResponse=0;
             listener_public_channel = llListen(0, "", "", "");
 
             string response = llJsonGetValue(body, ["response"]);
@@ -635,12 +640,12 @@ default
 
     timer()
     {
-        if (pollingResponse == 1) {
+        if (pollingForResponse == 1) {
             // Check if polling has timed out
             float current_time = llGetUnixTime();
             if (current_time - polling_start_time > polling_timeout) {
                 llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message: " + pollingMessageId);
-                pollingResponse = 0;
+                pollingForResponse = 0;
                 // Resume listening to public channel
                 listener_public_channel = llListen(0, "", "", "");
                 return;

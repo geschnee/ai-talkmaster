@@ -40,7 +40,7 @@ def get_available_voices():
         if config.audio_client is None:
             return JSONResponse(
                 status_code=400,
-                content={"error": f"Audio client is not configured"}
+                content={"error": f"This AI Talkmaster instance is not configured to use audio."}
             )
 
         voices = config.audio_client.allowed_voices

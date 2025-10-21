@@ -18,7 +18,6 @@ def getKey(username: str, model: str, prompt: str, system_instructions: str, opt
     return key
 
 @app.get("/generate/getMessageResponse")
-@rate_limit_decorator
 def generateGetMessageResponse(request: GenerateGetMessageResponseRequest):
     try:
 

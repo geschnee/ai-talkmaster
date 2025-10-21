@@ -1,5 +1,6 @@
 // script by Herzstein Dev
 // This script provides a way of interacting with the AI Talkmaster Generate functionality.
+// The generate functionailty provides a single response to a single message.
 // When the user clicks the object, it sends the user's next message to the AI Talkmaster server and prints the response.
 // More details at https://github.com/geschnee/ai-talkmaster
 
