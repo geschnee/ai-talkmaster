@@ -22,6 +22,7 @@ def get_available_models():
             content={
                 "chat_client_mode": config.chat_client.mode.value,
                 "chat_models": allowed_models,
+                "default_model": config.chat_client.default_model,
                 "count": len(allowed_models)
             }
         )
@@ -39,8 +40,8 @@ def get_available_voices():
 
         if config.audio_client is None:
             return JSONResponse(
-                status_code=400,
-                content={"error": f"This AI Talkmaster instance is not configured to use audio."}
+                status_code=200,
+                content={"audio_available": False, "error": f"This AI Talkmaster instance is not configured to use audio."}
             )
 
         voices = config.audio_client.allowed_voices
@@ -51,6 +52,7 @@ def get_available_voices():
         return JSONResponse(
             status_code=200,
             content={
+                "audio_available": True,
                 "audio_client_mode": config.audio_client.mode.value,
                 "default_voice": config.audio_client.default_voice,
                 "default_model": config.audio_client.default_model,

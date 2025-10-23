@@ -163,7 +163,9 @@ def get_response_openai(request: AitPostMessageRequest, ait_instance: Aitalkmast
     ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     increment_resource_usage(ip_address, response.usage.total_tokens)
 
-    return response.output_parsed.text_response # type: ignore
+    response_msg = remove_name(response.output_parsed.text_response, request.charactername)
+
+    return response_msg # type: ignore
 
 def build_filename(request: AitPostMessageRequest):
     # Create subdirectory for the join_key in active folder

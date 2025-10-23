@@ -6,7 +6,7 @@ server:
   usage:
     use_rate_limit: true
     rate_limit_xForwardedFor: false
-    rate_limit_per_day: 50000
+    rate_limit_per_day: 100000
     audio_cost_per_second: 100
 
 # OpenAI Configuration
@@ -33,7 +33,7 @@ icecast_client:
   host: "icecast"
   port: 8000
   admin_password: "password"
-  stream_endpoint_prefix: "http://hg.hypergrid.net:7010/stream/" # This variable will only be shown in the /ait/startConversation response to inform the user where to listen to for audio.
+  stream_endpoint_prefix: "http://hg.hypergrid.net:7010/stream/" # This variable will only be shown in the /ait/startConversation response to inform the user where to listen to for audio. Remove this variable when not using audio.
 
 
 # Aitalkmaster Configuration

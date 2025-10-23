@@ -6,7 +6,7 @@ server:
   usage:
     use_rate_limit: true
     rate_limit_xForwardedFor: false
-    rate_limit_per_day: 50000
+    rate_limit_per_day: 100000
 
 # OpenAI Configuration
 chat_client:

@@ -187,28 +187,22 @@ string deleteUpToSubstring(string input, string substring)
 
 post_message(string message_id, string username, string message) {
 
-    string body = "{
-        \"join_key\": \""+join_key+"\",
-        \"username\": \""+username+"\",
-        \"message\": \""+message+"\",
-        \"model\": \""+model+"\",
-        \"system_instructions\": \"" + systemInstructions +"\",
-        \"charactername\": \""+charactername+"\",
-        \"message_id\": \""+message_id+ "\",
-        \"options\": " + optionstring +",
-        \"audio_description\": \"" + audio_description + "\",
-        \"audio_voice\": \""+ audio_voice + "\",
-        \"audio_model\": \"" + audio_model + "\" 
-    }";
-    llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], body);
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "model", model,"system_instructions", systemInstructions, "charactername", charactername, "message_id", message_id, "options", optionstring, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
+
+
+    llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 call_response(string message_id) {
-    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\",\n        \"message_id\": \""+message_id+"\"\n    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "message_id", message_id]);
+
+    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 start_conversation(){
-    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\"\n    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key]);
+
+    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 transmitMessage(string username, string message){

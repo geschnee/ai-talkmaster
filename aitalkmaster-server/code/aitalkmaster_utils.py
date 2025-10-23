@@ -134,7 +134,6 @@ def remove_name(message: str, charactername: str):
         message = message[len(charactername)+2:]
     elif message.lower().startswith(f"{charactername.lower()}:"):
         message = message[len(charactername)+1:]
-
     return message
 
 def send_telnet_command(command: str) -> bool:

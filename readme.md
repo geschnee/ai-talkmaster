@@ -20,7 +20,7 @@ They are running on the same domain at different ports:
 | AI Talkmaster URL | http://hg.hypergrid.net:6000 | http://hg.hypergrid.net:7000 |
 | Icecast Port | 6010 | 7010 |
 | Icecast Stream URL | http://hg.hypergrid.net:6010/stream/{join_key} | http://hg.hypergrid.net:7010/stream/{join_key} |
-| [Daily Usage Limit](#daily-usage-limit) | 1.000.000 Tokens per IP | 50.000 Tokens per IP |
+| [Daily Usage Limit](#daily-usage-limit) | 1.000.000 Tokens per IP | 100.000 Tokens per IP |
 
 The scripts in [lsl-scripts](./lsl-scripts/) use the Open-Source instance, see ait_endpoint variable.
 
@@ -28,10 +28,10 @@ The scripts in [lsl-scripts](./lsl-scripts/) use the Open-Source instance, see a
 
 How to use the LSL-Scripts in-world:
 1. select a script and place it on an object that you own
-  - modify the ait_endpoint variable if you want (to your own AIT server or a [hosted AI Talkmaster](hosted-ai-talkmaster))
+   - modify the ait_endpoint variable if you want (to your own AIT server or a [hosted AI Talkmaster](hosted-ai-talkmaster))
 2. place the notecards on the object
-  - the script will tell you which notecards are required
-  - the script will validate the content of the notecards
+   - the script will tell you which notecards are required
+   - the script will validate the content of the notecards
 3. click on the object to start using it
 
 
@@ -121,6 +121,11 @@ http://{aitalkmasterUrl}:{IcecastPort}/stream/{join_key}
 This stream URL can be set as audio source for parcel sound in OpenSimulator regions:
 
 ![OpenSimulator Region Audio](./about/parcel_sound_music_url.JPG)
+
+
+Depending on the AI Talkmaster server configuration, the audio is generated using Kokoro or OpenAI. There are voice demos available online at:
+- [Kokoro TTS](https://huggingface.co/spaces/hexgrad/Kokoro-TTS)
+- [OpenAI](https://www.openai.fm/)
 
 
 ## Server return codes

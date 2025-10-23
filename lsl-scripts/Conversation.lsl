@@ -8,7 +8,7 @@ string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 integer com_channel = 0;
 integer listener;
-string prompt;
+string message;
 key user=NULL_KEY;
 string username ="";
 float reserveTime = 180.0;
@@ -207,7 +207,7 @@ validateAllParameters()
     validateModel(model);
 }
 
-start_oracle(string username) {
+start_conversation(string username) {
     // Check if model validation has completed and failed
     if (validationInProgress == 0 && modelsValidated == 0) {
         llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
@@ -219,18 +219,14 @@ start_oracle(string username) {
         llSay(0, "Model validation is still in progress. Please wait...");
         return;
     }
+
+    string jsonBody = llList2Json(JSON_OBJECT, ["username", username, "model", model,"system_instructions", system, "options", optionstring]);
     
     string instructions = llReplaceSubString(system, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"username\": \""+username+"\",
-        \"regionName\": \""+regionName+"\",
-        \"model\": \"" + model + "\",
-        \"system_instructions\": \"" + instructions +"\",
-        \"options\": " + optionstring +"
-    }");
+    llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
-call_oracle(string conversation_key, integer message_id, string prompt) {
+call_conversation_ait(string conversation_key, integer message_id, string message) {
     // Check if model validation has completed and failed
     if (validationInProgress == 0 && modelsValidated == 0) {
         llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
@@ -242,22 +238,16 @@ call_oracle(string conversation_key, integer message_id, string prompt) {
         llSay(0, "Model validation is still in progress. Please wait...");
         return;
     }
+
+    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message", message, "message_id", message_id]);
     
-    string prompt_escaped = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/conversation/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"conversation_key\": \""+conversation_key+"\",
-        \"message\": \""+prompt_escaped+"\",
-        \"regionName\": \""+regionName+"\",
-        \"message_id\": \""+message_id+ "\"
-    }");
+    llHTTPRequest(ait_endpoint + "/conversation/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 call_response(string conversation_key, integer message_id) {
-    llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"conversation_key\": \""+conversation_key+"\",
-        \"regionName\": \""+regionName+"\",
-        \"message_id\": \""+message_id+ "\"
-    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message_id", message_id]);
+
+    llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 set_ready() {
@@ -266,7 +256,7 @@ set_ready() {
     llSetTimerEvent(0);
     user=NULL_KEY;
     username="";
-    prompt="";
+    message="";
 
 
     llSay(0, "Please click on me to start a new session.");
@@ -410,7 +400,7 @@ default
         }
         if (user!=NULL_KEY & llDetectedKey(0) != user) {
             llSay(0, "Sorry I am currently in use by " + llKey2Name(user) + ". Please await your turn." );
-        } else if (user!=NULL_KEY and llDetectedKey(0) == user ) {
+        } else if (user!=NULL_KEY && llDetectedKey(0) == user ) {
             if (pollingResponse == 1) {
                 llInstantMessage(user, "Conversation in progress, I am waiting for the generated response. You can abort this conversation on channel" + command_channel + " with this command: ExitConversation");
             } else {
@@ -424,12 +414,12 @@ default
             
             
             stopwatch = 0;
-            prompt="";
+            message="";
             conversation_key="";
             llSetTexture("AI-Box-02", ALL_SIDES);
             llSetTimerEvent(pollFreq);
 
-            start_oracle(username);
+            start_conversation(username);
         }
     }
 
@@ -445,7 +435,7 @@ default
         if(channel == com_channel && id == user) {
             stopwatch=0;
             conversation_message_id = conversation_message_id + 1;
-            call_oracle(conversation_key, conversation_message_id, message);
+            call_conversation_ait(conversation_key, conversation_message_id, message);
             llSay(0, "Message is sent.");
             pollingResponse=1;
             polling_start_time = llGetUnixTime(); // Record when polling started

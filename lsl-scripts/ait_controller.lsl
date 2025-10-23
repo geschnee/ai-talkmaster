@@ -25,9 +25,9 @@ integer whitelistCurrentLine=0;
 integer max_response_length = 16384;
 
 reset_theater_play(string join_key) {
-    llHTTPRequest(ait_endpoint + "/ait/stopJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"join_key\": \""+join_key+"\"
-    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key]);
+
+    llHTTPRequest(ait_endpoint + "/ait/resetJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 default

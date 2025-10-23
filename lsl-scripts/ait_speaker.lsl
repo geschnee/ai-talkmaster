@@ -58,7 +58,6 @@ integer ALL_NOTECARDS_COMPLETED = 3; // 1 + 2 = 3
 integer max_response_length = 16384;
 
 // Audio generation variables
-integer audioGenerationQueue = 0;
 string audioGenerationMessageId;
 
 // Function to split text into chunks
@@ -175,24 +174,14 @@ string ReplaceQuotesForJson(string input)
 // Function to send message to generateAudio endpoint
 sendToGenerateAudio(string username, string message)
 {
-    audioGenerationQueue += 1;
-    audioGenerationMessageId = "moderator_" + username +"_"+ (string)audioGenerationQueue;
-    
-    string body = "{
-        \"join_key\": \""+join_key+"\",
-        \"username\": \""+username+"\",
-        \"message\": \""+ReplaceQuotesForJson(message)+"\",
-        \"message_id\": \""+audioGenerationMessageId+ "\",
-        \"audio_description\": \"" + audio_description + "\",
-        \"audio_voice\": \""+ audio_voice + "\",
-        \"audio_model\": \"" + audio_model + "\" 
-    }";
+    audioGenerationMessageId = (string) llGenerateKey();
+
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "message_id", message_id, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
 
     llHTTPRequest(ait_endpoint + "/ait/generateAudio", 
         [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], 
-        body);
+        jsonBody);
 }
-
 
 validateAudioParameters(string voiceToValidate, string audioModelToValidate, integer forActivation)
 {
@@ -225,7 +214,9 @@ integer isValueInJsonArray(string jsonString, string value)
 }
 
 start_conversation(){
-    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\"\n    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key]);
+
+    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 // Function to validate all parameters after they are loaded

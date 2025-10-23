@@ -66,6 +66,9 @@ string join_key;
 key modelsValidationId;
 key voicesValidationId;
 key startConversationId;
+key getMessageResponseId;
+key postMessageId;
+
 integer modelsValidated = 0;
 integer audioIsValidated = 0;
 
@@ -179,29 +182,23 @@ string deleteUpToSubstring(string input, string substring)
 
 
 post_message(string message_id, string username, string message) {
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "model", model,"system_instructions", systemInstructions, "charactername", charactername, "message_id", message_id, "options", optionstring, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
 
-    string body = "{
-        \"join_key\": \""+join_key+"\",
-        \"username\": \""+username+"\",
-        \"message\": \""+message+"\",
-        \"model\": \""+model+"\",
-        \"system_instructions\": \"" + systemInstructions +"\",
-        \"charactername\": \""+charactername+"\",
-        \"message_id\": \""+message_id+ "\",
-        \"options\": " + optionstring +",
-        \"audio_instructions\": \"" + audio_instructions + "\",
-        \"audio_voice\": \""+ audio_voice + "\",
-        \"audio_model\": \"" + audio_model + "\" 
-    }";
-    llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], body);
+    llSay(0, "jsonBody: " + jsonBody);
+
+    postMessageId = llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 call_response(string message_id) {
-    llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\",\n        \"message_id\": \""+message_id+"\"\n    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "message_id", message_id]);
+
+    getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 start_conversation(){
-    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{\n        \"join_key\": \""+join_key+"\"\n    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key]);
+
+    startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 transmitMessage(string username, string message){
@@ -213,8 +210,6 @@ transmitMessage(string username, string message){
 
     // do not listen to public channel when polling
     llListenRemove(listener_public_channel);
-
-    
 
     post_message(pollingMessageId, username, ReplaceQuotesForJson(message));
 }
@@ -262,20 +257,10 @@ validateAllParameters()
     }
     llOwnerSay("Starting parameter validation...");
     
-    // Only validate model if it's not empty
-    if (model != "") {
-        validateModel(model);
-    } else {
-        llOwnerSay("Model parameter is empty, skipping model validation, the default will be used.");
-        modelsValidated = 1; // Consider empty model as valid
-    }
-    // Check if we need to validate audio parameters
-    if (audio_voice != "" || audio_model != "") {
-        validateAudioParameters(audio_voice, audio_model);
-    } else {
-        llOwnerSay("Audio parameters are empty, skipping audio validation");
-        audioIsValidated = 1; // Consider empty audio parameters as valid
-    }
+    
+    validateModel(model);
+    
+    validateAudioParameters(audio_voice, audio_model);
 }
 
 printInfo(){
@@ -395,8 +380,6 @@ default
 
                 
                 validateAllParameters();
-
-                
             }
         }
         if (query_id == systemNotecardQueryId)
@@ -517,7 +500,6 @@ default
                     transmitMessage("Director", instruction);
                 }
             }
-            
         }
     }
 
@@ -527,12 +509,19 @@ default
         if (request_id == modelsValidationId) {
             if (status == 200) {
                 string chatModels = llJsonGetValue(body, ["chat_models"]);
-                if (isValueInJsonArray(chatModels, model)) {
-                    llOwnerSay("✓ Model '" + model + "' is valid");
+                string defaultModel = llJsonGetValue(body, ["default_model"]);
+
+                if (model==""){
+                    llOwnerSay("model was not specified in llm-parameters notecard, the AIT default model " + defaultModel + " will be used");
                     modelsValidated = 1;
                 } else {
-                    llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
-                    modelsValidated = 0;
+                    if (isValueInJsonArray(chatModels, model)) {
+                        llOwnerSay("✓ Model '" + model + "' is valid");
+                        modelsValidated = 1;
+                    } else {
+                        llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
+                        modelsValidated = 0;
+                    }
                 }
 
                 // Final validation summary
@@ -549,35 +538,47 @@ default
         
         if (request_id == voicesValidationId) {
             if (status == 200) {
-                string validVoices = llJsonGetValue(body, ["allowed_voices"]);
-                string audioModels = llJsonGetValue(body, ["audio_models"]);
+                llOwnerSay("body: " + body);
+                string audioAvailable = llJsonValueType(body, ["audio_available"]);
                 
-                integer voiceValid=0;
-                if (audio_voice!=""){
-                    voiceValid = isValueInJsonArray(validVoices, audio_voice);
-                    if (voiceValid) {
-                        llOwnerSay("✓ Audio voice '" + audio_voice + "' is valid");
+                if (audioAvailable==JSON_TRUE) {
+                    string validVoices = llJsonGetValue(body, ["allowed_voices"]);
+                    string audioModels = llJsonGetValue(body, ["audio_models"]);
+                    string defaultVoice = llJsonGetValue(body, ["default_voice"]);
+                    string defaultModel = llJsonGetValue(body, ["default_model"]);
+                    
+                    integer voiceValid=0;
+                    if (audio_voice!=""){
+                        voiceValid = isValueInJsonArray(validVoices, audio_voice);
+                        if (voiceValid) {
+                            llOwnerSay("✓ Audio voice '" + audio_voice + "' is valid");
+                        } else {
+                            llOwnerSay("✗ Audio voice '" + audio_voice + "' is NOT valid. Available voices: " + validVoices);
+                        }
                     } else {
-                        llOwnerSay("✗ Audio voice '" + audio_voice + "' is NOT valid. Available voices: " + validVoices);
+                        llOwnerSay("audio_voice was not specified in llm-parameters notecard, the AIT default voice " + defaultVoice + " will be used");
+                        voiceValid = 1;
                     }
+                    
+                    integer audioModelValid = 0;
+                    if (audio_model != ""){
+                        audioModelValid = isValueInJsonArray(audioModels, audio_model);
+                        if (audioModelValid) {
+                            llOwnerSay("✓ Audio model '" + audio_model + "' is valid");
+                        } else {
+                            llOwnerSay("✗ Audio model '" + audio_model + "' is NOT valid. Available audio models: " + audioModels);
+                        }
+                    } else {
+                        llOwnerSay("audio_model was not specified in llm-parameters notecard, the AIT default voice " + defaultVoice + " will be used");
+                        audioModelValid = 1;
+                    }
+                    
+                    audioIsValidated = (voiceValid && audioModelValid) ? 1 : 0;
                 } else {
-                    voiceValid = 1;
+                    llOwnerSay("This AIT server is not configured for audio use");
+                    audioIsValidated = 1;
                 }
                 
-                integer audioModelValid = 0;
-                if (audio_model != ""){
-                    audioModelValid = isValueInJsonArray(audioModels, audio_model);
-                    if (audioModelValid) {
-                        llOwnerSay("✓ Audio model '" + audio_model + "' is valid");
-                    } else {
-                        llOwnerSay("✗ Audio model '" + audio_model + "' is NOT valid. Available audio models: " + audioModels);
-                    }
-                } else {
-                    audioModelValid = 1;
-                }
-                
-                
-                audioIsValidated = (voiceValid && audioModelValid) ? 1 : 0;
                 
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
@@ -596,37 +597,42 @@ default
             return;
         }
         
-        // Handle regular AI response
-        if(200 == status) {
-            
-            string message_id = llJsonGetValue(body, ["message_id"]);
-            if (message_id!=(string) pollingMessageId){
+        if (request_id == getMessageResponseId || request_id == postMessageId) {
+
+            if(200 == status) {
+                
+                string message_id = llJsonGetValue(body, ["message_id"]);
+                if (message_id!=(string) pollingMessageId){
+                    return;
+                }
+                if (pollingForResponse==0){
+                    // we already recieved the info
+                    return;
+                }
+
+                // start listening to chat messages again
+                pollingForResponse=0;
+                listener_public_channel = llListen(0, "", "", "");
+
+                string response = llJsonGetValue(body, ["response"]);
+                
+                string trimmed_response = deleteUpToSubstring(response, "</think>");
+                trimmed_response = llStringTrim(trimmed_response, STRING_TRIM);
+
+                list chunks = splitText(trimmed_response);
+                integer i;
+                for (i = 0; i < llGetListLength(chunks); ++i)
+                {
+                    string chunk = llList2String(chunks, i);
+                    integer i_plus = i + 1;
+                    llSay(0, i_plus + " " + chunk);
+                }
+
                 return;
             }
-            if (pollingForResponse==0){
-                // we already recieved the info
-                return;
-            }
-
-            // start listening to chat messages again
-            pollingForResponse=0;
-            listener_public_channel = llListen(0, "", "", "");
-
-            string response = llJsonGetValue(body, ["response"]);
-            
-            string trimmed_response = deleteUpToSubstring(response, "</think>");
-            trimmed_response = llStringTrim(trimmed_response, STRING_TRIM);
-
-            list chunks = splitText(trimmed_response);
-            integer i;
-            for (i = 0; i < llGetListLength(chunks); ++i)
-            {
-                string chunk = llList2String(chunks, i);
-                integer i_plus = i + 1;
-                llSay(0, i_plus + " " + chunk);
-            }
-            
-        } else if (425 == status) {
+        }
+        
+        if (425 == status) {
             // 425 means the response is not yet available from AI talkmaster
             return;
         } else if (0 == status) {
@@ -635,6 +641,8 @@ default
         } else {
             // Report all other status codes to owner
             llOwnerSay("HTTP Error " + (string)status + ": " + body);
+            pollingForResponse = 0;
+            listener_public_channel = llListen(0, "", "", "");
         }
     }
 

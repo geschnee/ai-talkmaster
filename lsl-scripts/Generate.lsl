@@ -180,16 +180,10 @@ call_oracle(string prompt, string username) {
         llSay(0, "Model validation is still in progress. Please wait...");
         return;
     }
-    
-    string system_instructions = llReplaceSubString(system, "\"", "\\\"", 0);
-    string prompt_filtered = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/generate/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"username\": \""+username+"\",
-        \"prompt\": \""+prompt_filtered+"\",
-        \"model\": \"" + model + "\",
-        \"system_instructions\": \"" + system_instructions + "\",
-        \"options\": " + optionstring +"
-    }");
+
+    string jsonBody = llList2Json(JSON_OBJECT, ["username", username, "prompt", prompt, "model", model,"system_instructions", system, "options", optionstring]);
+
+    llHTTPRequest(ait_endpoint + "/generate/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 call_response(string prompt, string username) {
@@ -205,15 +199,10 @@ call_response(string prompt, string username) {
         return;
     }
     
-    string system_instructions = llReplaceSubString(system, "\"", "\\\"", 0);
-    string prompt_filtered = llReplaceSubString(prompt, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/generate/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "{
-        \"username\": \""+username+"\",
-        \"prompt\": \""+prompt_filtered+"\",
-        \"model\": \"" + model + "\",
-        \"system_instructions\": \"" + system_instructions + "\",
-        \"options\": " + optionstring +"
-    }");
+    string jsonBody = llList2Json(JSON_OBJECT, ["username", username, "prompt", prompt, "model", model,"system_instructions", system, "options", optionstring]);
+
+    
+    llHTTPRequest(ait_endpoint + "/generate/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 set_ready() {
