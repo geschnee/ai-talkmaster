@@ -26,6 +26,8 @@ The scripts in [lsl-scripts](./lsl-scripts/) use the Open-Source instance, see a
 
 # Information for using AI Talkmaster and LSL-Scripts in-world
 
+
+
 How to use the LSL-Scripts in-world:
 1. select a script and place it on an object that you own
    - modify the ait_endpoint variable if you want (to your own AIT server or a [hosted AI Talkmaster](hosted-ai-talkmaster))
@@ -33,6 +35,8 @@ How to use the LSL-Scripts in-world:
    - the script will tell you which notecards are required
    - the script will validate the content of the notecards
 3. click on the object to start using it
+
+As an alternative to step 1 and 2, you can import demo objects from [opensim-demo-objects](./opensim-demo-objects/). 
 
 
 There are a three kinds of interactions with the large language models: Generate, Conversation and AI Talkmaster. 
