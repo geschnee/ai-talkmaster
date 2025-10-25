@@ -170,56 +170,35 @@ finish_optionstring(){
     optionstring = "{ " + joins +" }";
 }
 
-string deleteUpToSubstring(string input, string substring)
-{
-    integer position = llSubStringIndex(input, substring);
-    
-    if (position == -1) // Substring not found
-        return input;
-    
-    return llDeleteSubString(input, 0, position + llStringLength(substring) - 1);
-}
 
-
-post_message(string message_id, string username, string message) {
+ait_postMessage(string message_id, string username, string message) {
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "model", model,"system_instructions", systemInstructions, "charactername", charactername, "message_id", message_id, "options", optionstring, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
-
-    llSay(0, "jsonBody: " + jsonBody);
 
     postMessageId = llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
-call_response(string message_id) {
+ait_getMessageResponse(string message_id) {
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "message_id", message_id]);
 
     getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
-start_conversation(){
+ait_startConversation(){
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key]);
 
     startConversationId=llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 transmitMessage(string username, string message){
-    string message_id = llGenerateKey();
-
-    pollingMessageId = message_id;
+    
+    pollingMessageId = llGenerateKey();
     pollingForResponse=1;
     polling_start_time = llGetUnixTime(); // Record when polling started
 
     // do not listen to public channel when polling
     llListenRemove(listener_public_channel);
 
-    post_message(pollingMessageId, username, ReplaceQuotesForJson(message));
-}
-
-string ReplaceQuotesForJson(string input)
-{
-    // Split on "
-    list parts = llParseString2List(input, ["\""], []);
-    // Join back with replacement
-    return llDumpList2String(parts, "\\\"");
+    ait_postMessage(pollingMessageId, username, message);
 }
 
 validateModel(string modelToValidate)
@@ -400,13 +379,11 @@ default
             {
                 // We've reached the end of the notecard
                 // Combine all lines into a single string with newlines
-                string entireContent = llDumpList2String(systemNotecardLines, "\\n");
+                systemInstructions = llDumpList2String(systemNotecardLines, "\\n");
                 
                 // Now you have the entire notecard as a single string
                 llOwnerSay("System notecard content loaded:");
-                llOwnerSay("system: " + entireContent);
-
-                systemInstructions = ReplaceQuotesForJson(entireContent);
+                llOwnerSay("system: " + systemInstructions);
             }
         }
         if (query_id == joinkeyNotecardQueryId)
@@ -527,7 +504,7 @@ default
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
-                    start_conversation();
+                    ait_startConversation();
                 }
         
             } else {
@@ -538,7 +515,6 @@ default
         
         if (request_id == voicesValidationId) {
             if (status == 200) {
-                llOwnerSay("body: " + body);
                 string audioAvailable = llJsonValueType(body, ["audio_available"]);
                 
                 if (audioAvailable==JSON_TRUE) {
@@ -583,7 +559,7 @@ default
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
                     llOwnerSay("✓ All parameters validated successfully!");
-                    start_conversation();
+                    ait_startConversation();
                 }
                 
             } else {
@@ -616,10 +592,9 @@ default
 
                 string response = llJsonGetValue(body, ["response"]);
                 
-                string trimmed_response = deleteUpToSubstring(response, "</think>");
-                trimmed_response = llStringTrim(trimmed_response, STRING_TRIM);
+                
 
-                list chunks = splitText(trimmed_response);
+                list chunks = splitText(response);
                 integer i;
                 for (i = 0; i < llGetListLength(chunks); ++i)
                 {
@@ -658,7 +633,7 @@ default
                 listener_public_channel = llListen(0, "", "", "");
                 return;
             }
-            call_response(pollingMessageId);
+            ait_getMessageResponse(pollingMessageId);
         }
     }
 

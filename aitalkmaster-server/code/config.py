@@ -41,6 +41,7 @@ class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 6000
     log_file: str = "logfile.txt"
+    llm_log_file: str = "llm_logfile.txt"
     usage: UsageConfig = None
     
 
@@ -137,6 +138,7 @@ class Config:
             host=server_data.get('host'),
             port=server_data.get('port'),
             log_file=server_data.get('log_file'),
+            llm_log_file=server_data.get('llm_log_file'),
             usage=UsageConfig(
                 use_rate_limit=usage_data.get('use_rate_limit'),
                 rate_limit_xForwardedFor=usage_data.get('rate_limit_xForwardedFor'),
@@ -218,8 +220,22 @@ class Config:
             join_key_keep_alive_list=aitalkmaster_data.get('join_key_keep_alive_list')
         )
         
+        # Validate stream endpoint prefix if audio client is configured
+        self._validate_stream_endpoint_prefix()
+        
         # Validate all configured models and voices
         self._validate_configuration()
+    
+    def _validate_stream_endpoint_prefix(self):
+        """
+        Validate that stream_endpoint_prefix is not empty when audio_client is configured.
+        Raises ConfigurationValidationError if validation fails.
+        """
+        if self.audio_client is not None and self.icecast_client is not None:
+            if not self.icecast_client.stream_endpoint_prefix or self.icecast_client.stream_endpoint_prefix.strip() == "":
+                error_message = "icecast_client.stream_endpoint_prefix is required and cannot be empty when audio_client is configured, this variable is returned to the user to inform where to listen to for audio."
+                log(f"FATAL: {error_message}")
+                raise ConfigurationValidationError(error_message)
     
     def _validate_configuration(self):
         """
@@ -299,6 +315,7 @@ class Config:
                 'host': self.server.host,
                 'port': self.server.port,
                 'log_file': self.server.log_file,
+                'llm_log_file': self.server.llm_log_file,
                 'usage': {
                     'use_rate_limit': self.server.usage.use_rate_limit,
                     'rate_limit_xForwardedFor': self.server.usage.rate_limit_xForwardedFor,

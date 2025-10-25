@@ -20,7 +20,7 @@ integer command_channel = 8;
 
 string conversation_key;
 float conversation_time=0;
-integer conversation_message_id= 0;
+key conversation_message_id=NULL_KEY;
 integer pollingResponse=0;
 
 integer max_response_length = 16384;
@@ -161,16 +161,6 @@ finish_optionstring(){
     optionstring = "{ " + joins +" }";
 }
 
-string deleteUpToSubstring(string input, string substring)
-{
-    integer position = llSubStringIndex(input, substring);
-    
-    if (position == -1) // Substring not found
-        return input;
-    
-    return llDeleteSubString(input, 0, position + llStringLength(substring) - 1);
-}
-
 validateModel(string modelToValidate)
 {
     if (validationInProgress) {
@@ -226,7 +216,7 @@ start_conversation(string username) {
     llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
-call_conversation_ait(string conversation_key, integer message_id, string message) {
+conversation_postMessage(string conversation_key, string message) {
     // Check if model validation has completed and failed
     if (validationInProgress == 0 && modelsValidated == 0) {
         llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
@@ -239,13 +229,15 @@ call_conversation_ait(string conversation_key, integer message_id, string messag
         return;
     }
 
-    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message", message, "message_id", message_id]);
+    conversation_message_id = llGenerateKey();
+
+    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message", message, "message_id", (string) conversation_message_id]);
     
     llHTTPRequest(ait_endpoint + "/conversation/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
-call_response(string conversation_key, integer message_id) {
-    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message_id", message_id]);
+conversation_getMessageResponse(string conversation_key) {
+    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message_id", (string) conversation_message_id]);
 
     llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
@@ -261,10 +253,7 @@ set_ready() {
 
     llSay(0, "Please click on me to start a new session.");
     llSay(0, "---");
-    llSetTexture("AI-Box-01", ALL_SIDES);
 }
-
-
 
 default
 {
@@ -416,7 +405,6 @@ default
             stopwatch = 0;
             message="";
             conversation_key="";
-            llSetTexture("AI-Box-02", ALL_SIDES);
             llSetTimerEvent(pollFreq);
 
             start_conversation(username);
@@ -434,8 +422,8 @@ default
         }
         if(channel == com_channel && id == user) {
             stopwatch=0;
-            conversation_message_id = conversation_message_id + 1;
-            call_conversation_ait(conversation_key, conversation_message_id, message);
+            
+            conversation_postMessage(conversation_key, message);
             llSay(0, "Message is sent.");
             pollingResponse=1;
             polling_start_time = llGetUnixTime(); // Record when polling started
@@ -479,7 +467,6 @@ default
                 llSay(0, "Please enter something you want to say to " + charactername + " in chat.");
                 // new conversation was started on backend
                 conversation_time=0;
-                conversation_message_id=0;
                 pollingResponse=0;
 
                 listener = llListen(com_channel, "", user, "");
@@ -495,19 +482,17 @@ default
 
             // start listening to user messages again
             pollingResponse=0;
+            conversation_message_id=NULL_KEY;
             listener = llListen(com_channel, "", user, "");
             llListen(command_channel, "", user, "");
             conversation_time = conversation_time + CONVERSATION_INCREMENT;
 
 
             string response = llJsonGetValue(body, ["response"]);
-            
-            string trimmed_response = deleteUpToSubstring(response, "</think>");
-            trimmed_response = llStringTrim(trimmed_response, STRING_TRIM);
 
             llSay(0, username+" that's for you: ");
 
-            list chunks = splitText(trimmed_response);
+            list chunks = splitText(response);
             integer i;
             for (i = 0; i < llGetListLength(chunks); ++i)
             {
@@ -545,14 +530,14 @@ default
                 // Check if polling has timed out
                 float current_time = llGetUnixTime();
                 if (current_time - polling_start_time > polling_timeout) {
-                    llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message: " + (string)conversation_message_id);
+                    llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message");
                     pollingResponse = 0; // Stop polling
                     llSay(0, "Sorry, the response took too long. Please try again.");
                     listener = llListen(com_channel, "", user, ""); // Resume listening
                     llListen(command_channel, "", user, "");
                     return;
                 }
-                call_response(conversation_key, conversation_message_id);
+                conversation_getMessageResponse(conversation_key);
             }
         }
     }

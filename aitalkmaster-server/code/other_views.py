@@ -57,7 +57,7 @@ def get_available_voices():
                 "default_voice": config.audio_client.default_voice,
                 "default_model": config.audio_client.default_model,
                 "allowed_voices": voices,
-                "audio_models": models,
+                "audio_models": models
             }
         )
     except Exception as e:

@@ -2,7 +2,8 @@
 // Two states: active and inactive (default: inactive)
 // Listens on channel 8 (config) and channel 0
 // Only responds to owner's messages
-// When active the speakers messages get forwarded to AI Talkmaster and are simply voiced for the audio stream.
+// When active the speakers messages get forwarded to AI Talkmaster and are voiced for the audio stream.
+// There is no large language model text response for the sent messages!
 
 // This script is intended to be used on a (HUD) wearable object.
 
@@ -24,7 +25,7 @@ key parametersNotecardQueryId;
 integer parametersCurrentLine = 0;
 
 // Properties
-string audio_description;
+string audio_instructions;
 string audio_voice;
 string audio_model;
 
@@ -153,16 +154,6 @@ finish_optionstring(){
     optionstring = "{ " + joins +" }";
 }
 
-string deleteUpToSubstring(string input, string substring)
-{
-    integer position = llSubStringIndex(input, substring);
-    
-    if (position == -1) // Substring not found
-        return input;
-    
-    return llDeleteSubString(input, 0, position + llStringLength(substring) - 1);
-}
-
 string ReplaceQuotesForJson(string input)
 {
     // Split on "
@@ -172,11 +163,11 @@ string ReplaceQuotesForJson(string input)
 }
 
 // Function to send message to generateAudio endpoint
-sendToGenerateAudio(string username, string message)
+ait_generateAudio(string username, string message)
 {
     audioGenerationMessageId = (string) llGenerateKey();
 
-    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "message_id", message_id, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
 
     llHTTPRequest(ait_endpoint + "/ait/generateAudio", 
         [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], 
@@ -324,9 +315,9 @@ state inactive
                     {
                         audio_model = value;
                     }
-                    if (paramName == "audio_description") 
+                    if (paramName == "audio_instructions") 
                     {
-                        audio_description = value;
+                        audio_instructions = value;
                     }
                     
                     integer listLength = llGetListLength(optionParameters);
@@ -348,7 +339,7 @@ state inactive
             {
                 // Parameters loaded
                 llOwnerSay("Parameters loaded:");
-                llOwnerSay("audio_description: " + audio_description);
+                llOwnerSay("audio_instructions: " + audio_instructions);
                 llOwnerSay("audio_voice: " + audio_voice);
                 llOwnerSay("audio_model: " + audio_model);
                 
@@ -520,7 +511,7 @@ state active
                 // Send owner's messages to generateAudio endpoint
                 string username = llParseString2List(name, ["@"], [])[0];
                 username = llStringTrim(username, 3);
-                sendToGenerateAudio(username, message);
+                ait_generateAudio(username, message);
             } else {
                 llOwnerSay("Speaker is not active, ignoring message");
             }

@@ -80,9 +80,9 @@ It is also used in the URL of the [audio stream](#audio-stream).
 # Server Description
 
 The AI Talkmaster server provides three kinds of AI conversations, that can be used from OpenSimulator.
-The scripts in lsl-scripts directory are examples of how these scripts can be used.
+The scripts in [lsl-scripts](./lsl-scripts/) can be used to interact with the three different kinds of AI conversation.s.
 
-There are 3 different postMessage endpoints for generating text, these requests start the generation of text using large language models. This generation may take a few minutes, depending on the selected models and requests themselves. These long response times lead to timeouts (30 seconds in OpenSimulator and 60 seconds in [LSL](https://wiki.secondlife.com/wiki/LlHTTPRequest#Caveats)). The getMessageResponse endpoints can be used to get the generated result when the generation reached a timeout.
+There are 3 different postMessage endpoints for generating text, these requests start the generation of text using large language models. This generation may take a few seconds or even minutes, depending on the selected models and requests themselves. Long response times lead to timeouts (about 30 seconds in OpenSimulator and 60 seconds in [LSL](https://wiki.secondlife.com/wiki/LlHTTPRequest#Caveats)). The getMessageResponse endpoints can be used to get the generated result when the postMessage call reaches a timeout.
 
 
 ## Server Endpoints
@@ -123,7 +123,7 @@ This stream URL can be set as audio source for parcel sound in OpenSimulator reg
 ![OpenSimulator Region Audio](./about/parcel_sound_music_url.JPG)
 
 
-Depending on the AI Talkmaster server configuration, the audio is generated using Kokoro or OpenAI. There are voice demos available online at:
+Depending on the AI Talkmaster server configuration, the audio is generated using Kokoro TTS or OpenAI. There are voice demos available online at:
 - [Kokoro TTS](https://huggingface.co/spaces/hexgrad/Kokoro-TTS)
 - [OpenAI](https://www.openai.fm/)
 
@@ -141,9 +141,9 @@ Depending on the AI Talkmaster server configuration, the audio is generated usin
 
 You can host your own AI Talkmaster instance. It is recommended to use docker and requires some knowledge about networking, docker and IT in general.
 
-As a server hoster you can decide to use open-source large language models (e.g. Ollama) or closed source providers (e.g. OpenAI).
-Similarly the server hoster can decide to include or ommit the audio streaming features and can decide to use open-source (e.g. Kokoro) or closed source (e.g. OpenAI) to generate the audio. 
-There are configuration examples included in this repository at docker/hosting and aitalkmaster-server/config for these four scenarios:
+As a server hoster you can decide to use open-source large language text models (e.g. Ollama) or closed source providers (e.g. OpenAI).
+Similarly the server hoster can decide to include or ommit the audio streaming features and can decide to use open-source (e.g. Kokoro TTS) or closed source (e.g. OpenAI) to generate the audio. 
+Configuration and hosting examples are included at [docker-hosting](./docker-hosting/) and [aitalkmaster-server/configs](./aitalkmaster-server/configs/) for these four scenarios:
 - Ollama Text with Kokoro Audio
 - Ollama Text without Audio
 - OpenAI Text with OpenAI Audio
@@ -167,9 +167,9 @@ We use the docker-compose-nginx.yml to make the Ollama available on port 11433 f
 Ollama provides a lot of [options](https://github.com/ollama/ollama/blob/main/docs/modelfile.md) for generating text responses, they can be sent to AI Talkmaster using the "options" parameter. This provides AI Talkmaster users more control over the behaviour.
 
 
-### Audio Client Kokoro
+### Audio Client Kokoro TTS
 
-Kokoro is a light-weight open-source model for generating audio. You can host your own Kokoro server using the docker-compose-kokoro.yml file.
+Kokoro TTS is a light-weight open-source model for generating audio. You can host your own Kokoro server using the docker-compose-kokoro.yml file.
 
 ## Closed Source hosting
 

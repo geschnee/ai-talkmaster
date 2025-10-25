@@ -59,6 +59,9 @@ class AitalkmasterInstance:
         # Lists of message objects for better readability
         self.user_messages: list[UserMessage] = []
         self.assistant_responses: list[AssistantResponse] = []
+        
+        # Audio sequence counter for this instance
+        self.audio_sequence_counter = 0
 
     def addUserMessage(self, message: str, name: str, message_id: str):
         """Add a user message to the conversation"""
@@ -125,6 +128,16 @@ class AitalkmasterInstance:
             if assistant_resp.response_id == response_id:
                 assistant_resp.audio_created_at = timestamp
                 break
+
+    def generate_sequence_str(self) -> str:
+        """Generate a sequence string for audio files with leading zeros for proper sorting"""
+        # Increment sequence counter for this instance
+        self.audio_sequence_counter += 1
+        sequence_number = self.audio_sequence_counter
+        
+        # Format sequence number with leading zeros for proper sorting (e.g., 001, 002, 003)
+        sequence_str = f"{sequence_number:03d}"
+        return sequence_str
 
     def __str__(self):
         return str(self.getDialog())

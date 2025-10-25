@@ -8,9 +8,10 @@ string ait_endpoint = "http://hg.hypergrid.net:6000";
 
 
 integer listener;
-string prompt;
+string input_message;
 key user=NULL_KEY;
 string username ="";
+key message_id=NULL_KEY;
 float reserveTime = 600.0;
 float pollFreq = 2.0;
 float stopwatch;
@@ -56,13 +57,6 @@ list optionStringParts=[];
 list optionParameters = [
     "num_ctx", "repeat_last_n","repeat_penalty","temperature","seed","stop","num_predict","top_k","top_p","min_p"
 ];
-
-// example notecard:
-//name:Oracle
-//model:llama3.2
-//instructions:Talk like davy jones, the feared pirate. Talk like you are talking to an old and cherished rival.
-//temperature:1
-//num_predict:-1
 
 
 // Function to split text into chunks
@@ -140,16 +134,6 @@ list splitText(string text)
     return chunks;
 }
 
-string deleteUpToSubstring(string input, string substring)
-{
-    integer position = llSubStringIndex(input, substring);
-    
-    if (position == -1) // Substring not found
-        return input;
-    
-    return llDeleteSubString(input, 0, position + llStringLength(substring) - 1);
-}
-
 start_optionstring() {
     optionstring = "{";
     optionStringParts = [];
@@ -168,7 +152,7 @@ finish_optionstring(){
     optionstring = "{ " + joins +" }";
 }
 
-call_oracle(string prompt, string username) {
+generate_postMessage(string input_message) {
     // Check if model validation has completed and failed
     if (validationInProgress == 0 && modelsValidated == 0) {
         llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
@@ -181,12 +165,15 @@ call_oracle(string prompt, string username) {
         return;
     }
 
-    string jsonBody = llList2Json(JSON_OBJECT, ["username", username, "prompt", prompt, "model", model,"system_instructions", system, "options", optionstring]);
+    // Generate a unique message_id for this request
+    message_id = llGenerateKey();
+
+    string jsonBody = llList2Json(JSON_OBJECT, ["message", input_message, "model", model,"system_instructions", system, "options", optionstring, "message_id", (string)message_id]);
 
     llHTTPRequest(ait_endpoint + "/generate/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
-call_response(string prompt, string username) {
+generate_getMessageResponse(string input_message) {
     // Check if model validation has completed and failed
     if (validationInProgress == 0 && modelsValidated == 0) {
         llSay(0, "Model '" + model + "' is not available on the server. Please check your configuration.");
@@ -199,7 +186,7 @@ call_response(string prompt, string username) {
         return;
     }
     
-    string jsonBody = llList2Json(JSON_OBJECT, ["username", username, "prompt", prompt, "model", model,"system_instructions", system, "options", optionstring]);
+    string jsonBody = llList2Json(JSON_OBJECT, ["message_id", (string)message_id]);
 
     
     llHTTPRequest(ait_endpoint + "/generate/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
@@ -209,11 +196,10 @@ set_ready() {
     llListenRemove(listener);
     llSetTimerEvent(0);
     user=NULL_KEY;
-    username="";
-    prompt="";
+    input_message="";
+    message_id=NULL_KEY;
     llSay(0, "Please click on me to start a new session.");
     llSay(0, "---");
-    llSetTexture("AI-Box-01", ALL_SIDES);
 }
 
 string str_replace(string src, string from, string to)
@@ -391,8 +377,7 @@ default
             llSay(0, "Please enter something you want to say to "+ charactername + " in chat.");
             listener = llListen(0, "", user, "");
             stopwatch = 0;
-            prompt="";
-            llSetTexture("AI-Box-02", ALL_SIDES);
+            input_message="";
             llSetTimerEvent(pollFreq);
         }
     }
@@ -401,9 +386,9 @@ default
     {
         if(channel == 0 && id == user) {
             stopwatch=0;
-            prompt = message;
+            input_message = message;
             polling_start_time = llGetUnixTime(); // Record when polling started
-            call_oracle(message, username);
+            generate_postMessage(message);
             llSay(0, "Message is sent.");
             llListenRemove(listener);
         }   
@@ -433,32 +418,16 @@ default
         }
         
         if(200 == status) {
-            if (username == ""){
-                //llSay(0, "reset was called between request and response");
+            string message_id_rtn = llJsonGetValue(body, ["message_id"]);
+            if (message_id_rtn != (string)message_id) {
                 return;
             }
-            
 
             string response = llJsonGetValue(body, ["response"]);
 
-            string username_rtn = llJsonGetValue(body, ["username"]);
-            string prompt_rtn = llJsonGetValue(body, ["prompt"]);
-            if (username_rtn != username) {
-                return;
-            }
-            if (prompt_rtn != prompt) {
-                return;
-            }
-
-
-           
-
-            string trimmed_response = deleteUpToSubstring(response, "</think>");
-            trimmed_response = llStringTrim(trimmed_response, STRING_TRIM);
-
             llSay(0, username+" that's for you: ");
 
-            list chunks = splitText(trimmed_response);
+            list chunks = splitText(response);
 
             integer i;
             for (i = 0; i < llGetListLength(chunks); ++i)
@@ -468,8 +437,7 @@ default
                 llSay(0, i_plus + " " + chunk);
             }
 
-
-            llSay(0, "Thank you for being here today "+username+". Now a new session will be opened.");
+            llSay(0, "Thank you for being here today "+username+".");
             
             set_ready();
         } else if (425 == status) {
@@ -492,20 +460,19 @@ default
         // If the remaining seconds have exhausted.
         if(remaining<=0.0) {
             llSay(0, "Sorry timed out. I shall restart now.");
-            llSetTexture("AI-Box-04", ALL_SIDES);
             set_ready();
         } else {
-            if (prompt != "") {
+            if (input_message != "") {
                 // Check if polling has timed out
                 float current_time = llGetUnixTime();
                 if (current_time - polling_start_time > polling_timeout) {
-                    llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for prompt: " + prompt);
-                    prompt = ""; // Clear prompt to stop polling
+                    llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message: " + input_message);
+                    
                     llSay(0, "Sorry, the response took too long. Please try again.");
                     set_ready();
                     return;
                 }
-                call_response(prompt, username);
+                generate_getMessageResponse(input_message);
             }
         }
     }

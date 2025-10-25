@@ -5,6 +5,7 @@ server:
   host: "0.0.0.0"
   port: 6000
   log_file: "./logs/logfile.txt"
+  llm_log_file: "./logs/llm_logfile.txt"
   usage:
     use_rate_limit: true
     rate_limit_xForwardedFor: false

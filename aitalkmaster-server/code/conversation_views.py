@@ -5,7 +5,7 @@ import uuid
 from typing import Optional
 from dataclasses import dataclass
 
-from code.shared import app, config, log
+from code.shared import app, config, log, llm_log
 from code.validation_decorators import validate_chat_model_decorator, rate_limit_decorator
 from code.request_models import ConversationStartRequest, ConversationGetMessageResponseRequest, ConversationPostMessageRequest
 from code.openai_response import CharacterResponse
@@ -42,9 +42,8 @@ class ConversationResponse:
 class Conversation:
     """Represents a conversation history with messages and metadata"""
     
-    def __init__(self, conversation_key: str, username: str, model: str, options: dict, system: str):
+    def __init__(self, conversation_key: str, model: str, options: dict, system: str):
         self.conversation_key = conversation_key
-        self.username = username
         self.model = model
         self.user_messages: list[ConversationMessage] = []
         self.assistant_responses: list[ConversationResponse] = []
@@ -137,14 +136,15 @@ def getConversation(conversation_key):
 @rate_limit_decorator
 def startConversation(request_model: ConversationStartRequest, fastapi_request: Request):
     try:
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} startConversation: {request_model.username}, {request_model.model}, {request_model.options}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} startConversation: model: {request_model.model}, system: {request_model.system_instructions}, options: {request_model.options}')
 
         while len(conversation_queue)>=MAX_ACTIVE_CONVERSATIONS:
+            llm_log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} Conversation: Max active conversations reached, removing oldest conversation:{conversation_queue[0]}')
             conversation_queue.pop()
 
         conversation_key = str(uuid.uuid4())
 
-        conversation_queue.append(Conversation(conversation_key, request_model.username, request_model.model, request_model.options, request_model.system_instructions))
+        conversation_queue.append(Conversation(conversation_key, request_model.model, request_model.options, request_model.system_instructions))
 
         return JSONResponse(
             status_code=200,
@@ -247,7 +247,7 @@ def conversationPostMessage(request_model: ConversationPostMessageRequest, fasta
 
         conversation.addResponse(response_msg, request_model.message_id)
 
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} conversation/postMessage: username: {conversation.username} data:{request_model.model_dump()} conversation:{conversation}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} conversation/postMessage: data:{request_model.model_dump()} conversation:{conversation}')
         
         return JSONResponse( 
             status_code=200,

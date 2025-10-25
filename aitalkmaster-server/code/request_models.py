@@ -5,22 +5,17 @@ from pydantic import BaseModel
 
 # Generate requests (single-character conversations without history)
 class GenerateGetMessageResponseRequest(BaseModel):
-    username: str
-    prompt: str
-    model: str
-    system_instructions: str
-    options: Optional[dict] = {}
+    message_id: str
 
 class GenerateRequest(BaseModel):
-    username: str
-    prompt: str
+    message_id: str
+    message: str
     model: str
     system_instructions: str
     options: Optional[dict] = {}
 
 # Conversation requests (single-character conversations with history, no audio streaming)
 class ConversationStartRequest(BaseModel):
-    username: str
     model: str
     system_instructions: Optional[str] = ""
     options: Optional[dict] = {}
@@ -63,7 +58,6 @@ class AitGenerateAudioRequest(BaseModel):
     join_key: str
     username: str
     message: str
-    message_id: str
     audio_instructions: Optional[str] = ""
     audio_voice: Optional[str] = ""
     audio_model: Optional[str] = ""

@@ -13,7 +13,7 @@ from code.config import ChatClientMode, AudioClientMode
 from code.aitalkmaster_utils import AitalkmasterInstance, remove_name, start_liquidsoap
 from code.request_models import AitPostMessageRequest, AitMessageResponseRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest, AitStartConversationRequest
 from code.validation_decorators import validate_chat_model_decorator, validate_audio_decorator, rate_limit_decorator
-from code.shared import app, config, log
+from code.shared import app, config, log, llm_log
 from pydub import AudioSegment
 from code.openai_response import CharacterResponse
 from mutagen.easyid3 import EasyID3
@@ -23,22 +23,6 @@ from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_
 
 active_aitalkmaster_instances = {}
 finished_aitalkmaster_instances = []
-
-# Track audio file sequence numbers per join_key
-audio_sequence_counters = {}
-
-# Get or initialize sequence counter for this join_key
-def generate_sequence_str(join_key: str):
-    if join_key not in audio_sequence_counters:
-        audio_sequence_counters[join_key] = 0
-    
-    # Increment sequence counter for this join_key
-    audio_sequence_counters[join_key] += 1
-    sequence_number = audio_sequence_counters[join_key]
-    
-    # Format sequence number with leading zeros for proper sorting (e.g., 001, 002, 003)
-    sequence_str = f"{sequence_number:03d}"
-    return sequence_str
 
 def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: str, audio_instructions: str, fastapi_request: Request):
     if config.audio_client.mode == AudioClientMode.OPENAI:
@@ -140,10 +124,6 @@ def get_response_ollama(request: AitPostMessageRequest, ait_instance: Aitalkmast
     
     response_msg = remove_name(response["message"]["content"], request.charactername)
 
-  
-
-    log(f'response: {response}')
-    log(f'eval count: {response["eval_count"]}')
 
     ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     increment_resource_usage(ip_address, response["eval_count"])
@@ -167,14 +147,14 @@ def get_response_openai(request: AitPostMessageRequest, ait_instance: Aitalkmast
 
     return response_msg # type: ignore
 
-def build_filename(request: AitPostMessageRequest):
+def build_filename(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance):
     # Create subdirectory for the join_key in active folder
     join_key_dir = Path(f'./generated-audio/active/{request.join_key}')
     join_key_dir.mkdir(parents=True, exist_ok=True)
     
-    sequence_str = generate_sequence_str(request.join_key)
+    sequence_str = ait_instance.generate_sequence_str()
     
-    fn = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.charactername}_{request.message_id}_{request.audio_voice}_{str(uuid.uuid4())}.mp3'
+    fn = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.charactername}_{request.message_id}_{request.audio_voice}.mp3'
     return fn
 
 
@@ -228,7 +208,7 @@ def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Reques
             )
 
         if config.audio_client is not None:
-            filename = build_filename(request_model)
+            filename = build_filename(request_model, ait_instance)
         else:
             filename = None
 
@@ -240,7 +220,7 @@ def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Reques
         
             ait_instance.set_audio_created_at(request_model.message_id, time.time())
         
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage: data: {request_model.message} response: {response_msg}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage: message: {request_model.message} response: {response_msg}')
         
 
         return JSONResponse(
@@ -303,13 +283,19 @@ def reset_aitalkmaster(join_key: str):
         move_audio_files_to_inactive(join_key)
 
     if join_key in active_aitalkmaster_instances.keys():
+        # Log the completed conversation before moving to finished instances
+        ait_instance = active_aitalkmaster_instances[join_key]
+        conversation_data = {
+            "join_key": join_key,
+            "conversation": ait_instance.getDialog(),
+            "created_at": ait_instance.created_at,
+            "reset_at": time.time()
+        }
+        llm_log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} AI Talkmaster: Completed conversation for {join_key}: {conversation_data}')
+        
         finished_aitalkmaster_instances.append(active_aitalkmaster_instances[join_key])
 
         del active_aitalkmaster_instances[join_key]
-        
-        # Reset the sequence counter for this join_key
-        if join_key in audio_sequence_counters:
-            del audio_sequence_counters[join_key]
 
 @app.post("/ait/resetJoinkey")
 @rate_limit_decorator
@@ -388,16 +374,16 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
 
         join_key = request_model.join_key
 
-        _ = get_or_create_ait_instance(join_key) # This starts the audio stream if it is not already running
+        ait_instance = get_or_create_ait_instance(join_key) # This starts the audio stream if it is not already running
 
         # Create directory for the join_key if it doesn't exist
         join_key_dir = Path(f'./generated-audio/active/{request_model.join_key}')
         join_key_dir.mkdir(parents=True, exist_ok=True)
         
-        sequence_str = generate_sequence_str(request_model.join_key)
+        sequence_str = ait_instance.generate_sequence_str()
         
         # Generate filename with sequence number
-        filename = f'./generated-audio/active/{request_model.join_key}/{sequence_str}_{request_model.username}_{request_model.message_id}_{request_model.audio_voice}_{str(uuid.uuid4())}.mp3'
+        filename = f'./generated-audio/active/{request_model.join_key}/{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}.mp3'
         
         save_audio(filename, request_model.message, request_model.audio_voice, request_model.audio_model, request_model.audio_instructions, fastapi_request)
 
@@ -408,9 +394,9 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
         return JSONResponse(
             status_code=200,
             content={
-                "message_id": request_model.message_id,
                 "filename": filename,
-                "status": "success"
+                "status": "success",
+                
             }
         )
         
