@@ -32,7 +32,17 @@ testing showed no improvement when setting burst-on-connect to 0 for listening t
 
 ## join_key conflict
 
-What if two users decide to use the same join_key? (unintentionally or by malicious intent) They would essentially use the same conversation and interfere with each other.
+What if two users decide to use the same join_key? (unintentionally or by malicious intent)
 
-TODO join_key (change to a secret key (not visible from location MUSIC URL))
-displayname (name for Icecast URL, unique, cannot change for a join_key)
+They would essentially use the same conversation and interfere with each other.
+
+### Possible Solution
+
+- Change join_key to a secret key.
+- Introduce a displayname variable
+  - Used in name for Icecast URL
+  - Used in mp3-Metadata
+  
+Status:
+not implemented yet
+

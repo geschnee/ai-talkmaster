@@ -27,8 +27,8 @@ services:
 
   liquidsoap:
     build:
-      context: ../
-      dockerfile: docker-hosting/liquidsoap.Dockerfile
+      context: ./
+      dockerfile: liquidsoap.Dockerfile
     restart: unless-stopped
     volumes:
       - ../volumes/liquidsoap-logs:/var/log/liquidsoap

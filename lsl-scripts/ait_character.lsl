@@ -49,12 +49,12 @@ string audio_instructions;
 string audio_voice="";
 string audio_model="";
 
-string optionstring;
-list optionStringParts=[];
+list optionParameters_stringlist = ["stop"];
+list optionParameters_integers = ["num_ctx","repeat_last_n", "seed", "num_predict", "top_k"];
+list optionParameters_floats = ["repeat_penalty","temperature","top_p","min_p"];
 
-list optionParameters = [
-    "num_ctx", "repeat_last_n","repeat_penalty","temperature","seed","stop","num_predict","top_k","top_p","min_p"
-];
+// List to store option key-value pairs
+list optionsList = [];
 
 
 
@@ -152,26 +152,38 @@ list splitText(string text)
     return chunks;
 }
 
-start_optionstring() {
-    optionstring = "{";
-    optionStringParts = [];
+
+add_stringlist_option(string optionname, string value) {
+    optionsList += [optionname, llList2Json(JSON_ARRAY, [value])];
 }
 
-add_option(string optionname, string value){
-    if (optionname == "stop"){
-        optionStringParts = optionStringParts + ["\"stop\": [\"" + value + "\"]"];
+add_int_option(string optionname, integer num) {
+    optionsList += [optionname, num];
+}
+
+add_float_option(string optionname, float num) {
+    optionsList += [optionname, num];
+}
+
+// Add option with automatic type detection
+add_option(string optionname, string value) {
+    // Check which type list contains this parameter
+    if (llListFindList(optionParameters_stringlist, [optionname]) != -1) {
+        add_stringlist_option(optionname, value);
+    } else if (llListFindList(optionParameters_integers, [optionname]) != -1) {
+        integer intValue = (integer)value;
+        add_int_option(optionname, intValue);
+    } else if (llListFindList(optionParameters_floats, [optionname]) != -1) {
+        float floatValue = (float)value;
+        add_float_option(optionname, floatValue);
     } else {
-        optionStringParts = optionStringParts + ["\""+optionname+"\": " + value];
+        llOwnerSay("Unknown option: " + optionname);
     }
-}
-
-finish_optionstring(){
-    string joins = llDumpList2String(optionStringParts, ", ");
-    optionstring = "{ " + joins +" }";
 }
 
 
 ait_postMessage(string message_id, string username, string message) {
+    string optionstring = llList2Json(JSON_OBJECT, optionsList);
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "model", model,"system_instructions", systemInstructions, "charactername", charactername, "message_id", message_id, "options", optionstring, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
 
     postMessageId = llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
@@ -270,7 +282,7 @@ default
         }
         // Start reading the notecard from the first line
 
-        start_optionstring();
+        optionsList = [];
         parametersNotecardQueryId = llGetNotecardLine(parametersNotecardName, parametersCurrentLine);
         systemNotecardQueryId = llGetNotecardLine(systemNotecardName, systemCurrentLine);
 
@@ -328,15 +340,13 @@ default
                         audio_instructions = value;
                     }
                     
-                    integer listLength = llGetListLength(optionParameters);
-                    integer i;
-                    for (i=0; i< listLength; i++)
-                    {
-                        string indexName = llList2String(optionParameters, i);
-                        if (paramName == indexName) 
-                        {
-                            add_option(paramName, value);
-                        }
+                    // Check if this parameter is in any of our option lists
+                    integer isStringListParam = (llListFindList(optionParameters_stringlist, [paramName]) != -1);
+                    integer isIntParam = (llListFindList(optionParameters_integers, [paramName]) != -1);
+                    integer isFloatParam = (llListFindList(optionParameters_floats, [paramName]) != -1);
+                    
+                    if (isStringListParam || isIntParam || isFloatParam) {
+                        add_option(paramName, value);
                     }
                 }
                 // Get the next line
@@ -354,8 +364,6 @@ default
                 llOwnerSay("audio_voice: " + audio_voice);
                 llOwnerSay("audio_model: " + audio_model);
                 
-                finish_optionstring();
-                llOwnerSay("optionstring: " + optionstring);
 
                 
                 validateAllParameters();

@@ -77,6 +77,65 @@ def save_metadata(filename: str, name: str, join_key: str):
     tags["genre"] = "Speech"
     tags.save()
 
+def merge_audio_files(join_key: str):
+    """Merge all audio files from a conversation directory into a single file"""
+    try:
+        # Get the directory path for this join_key
+        audio_dir = Path(f'./generated-audio/active/{join_key}')
+        
+        if not audio_dir.exists():
+            log(f'No audio directory found for join_key: {join_key}')
+            return False
+        
+        # Find all MP3 files in the directory, excluding the merged file itself
+        audio_files = []
+        for file_path in audio_dir.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() == '.mp3':
+                # Skip the merged file if it already exists
+                if not file_path.name.startswith('merged_conversation_'):
+                    audio_files.append(str(file_path))
+        
+        if not audio_files:
+            log(f'No audio files found in directory for join_key: {join_key}')
+            return False
+        
+        # Sort files by their sequence number (filename contains sequence)
+        audio_files.sort()
+        
+        # Create merged audio file path
+        merged_filename = f'./generated-audio/active/{join_key}/merged_conversation_{join_key}.mp3'
+        
+        # Load and concatenate all audio files
+        combined_audio = AudioSegment.empty()
+        
+        for audio_file in audio_files:
+            try:
+                audio_segment = AudioSegment.from_mp3(audio_file)
+                combined_audio += audio_segment
+                log(f'Added audio file to merge: {audio_file}')
+            except Exception as e:
+                log(f'Error loading audio file {audio_file}: {e}')
+                continue
+        
+        if len(combined_audio) == 0:
+            log(f'No valid audio content found for merge in join_key: {join_key}')
+            return False
+        
+        # Export the merged audio file
+        combined_audio.export(merged_filename, format="mp3", bitrate="192k")
+        
+        # Add metadata to the merged file
+        save_metadata(merged_filename, "AI Talkmaster", join_key)
+        
+        log(f'Successfully merged {len(audio_files)} audio files into: {merged_filename}')
+        log(f'Merged audio duration: {len(combined_audio) / 1000.0:.2f} seconds')
+        
+        return True
+        
+    except Exception as e:
+        log(f'Error merging audio files for {join_key}: {e}')
+        return False
+
 def move_audio_files_to_inactive(join_key: str):
     """Move audio files from active to inactive folder when conversation is reset"""
     try:
@@ -280,6 +339,7 @@ def reset_aitalkmaster(join_key: str):
     # We do not stop the liquidsoap stream since that would lead to an interruption in the OpenSimulator viewers' audio stream.
 
     if config.audio_client is not None:
+        merge_audio_files(join_key)
         move_audio_files_to_inactive(join_key)
 
     if join_key in active_aitalkmaster_instances.keys():
