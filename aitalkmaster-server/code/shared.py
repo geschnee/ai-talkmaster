@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
         # Import here to avoid circular imports
         from code.aitalkmaster_utils import stop_liquidsoap
         from code.aitalkmaster_views import active_aitalkmaster_instances, reset_aitalkmaster
+        from code.icecast_monitor import delete_active_icecast_directory
         
         # Stop all active liquidsoap streams
         for join_key in list(active_aitalkmaster_instances.keys()):
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
             if config.liquidsoap_client is not None:
                 stop_liquidsoap(join_key)
             reset_aitalkmaster(join_key)
+            delete_active_icecast_directory(join_key)
 
         from code.conversation_views import conversation_queue
         for conversation in conversation_queue:

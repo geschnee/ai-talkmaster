@@ -4,8 +4,9 @@ services:
       context: ../
       dockerfile: docker-hosting/aitalkmaster.Dockerfile
     container_name: aitalkmaster
-    ports:
-      - "6000:6000"
+    # Remove external port exposure - only accessible via nginx proxy
+    expose:
+      - "6000"
     networks:
       - streaming-network
     extra_hosts:
@@ -47,8 +48,9 @@ services:
       context: ../
       dockerfile: docker-hosting/icecast.Dockerfile
     restart: unless-stopped
-    ports:
-      - "6010:8000" 
+    # Remove external port exposure - only accessible via nginx proxy
+    expose:
+      - "8000" 
     environment:
       - ICECAST_SOURCE_PASSWORD=srcpassword
       - ICECAST_RELAY_PASSWORD=password
@@ -59,6 +61,29 @@ services:
       - ../volumes/icecast-logs:/var/log/icecast2
     networks:
       - streaming-network
+
+  # Nginx proxy to hide backend containers and provide unified API endpoints
+  nginx:
+    image: nginx:alpine
+    container_name: aitalkmaster-nginx
+    restart: unless-stopped
+    ports:
+      - "6000:80"  # External port
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../volumes/nginx-logs:/var/log/nginx
+      - ../volumes/generated-audio:/generated-audio:ro
+    depends_on:
+      - aitalkmaster
+      - icecast
+    networks:
+      - streaming-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
   
 networks:
   streaming-network:

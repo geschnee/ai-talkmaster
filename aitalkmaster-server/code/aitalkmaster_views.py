@@ -369,10 +369,23 @@ def resetJoinkey(request_model: AitResetJoinkeyRequest, fastapi_request: Request
             log(f'conv has been reset: {join_key}')
         else:
             log(f'conv resetRequest for key but key not found: {join_key}')
-        return JSONResponse(
-            status_code=200,
-            content=f"{join_key} has been reset"
-        )
+
+        if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
+            stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "info":f"{join_key} has been reset",
+                    "stream_url": stream_url
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "info":f"{join_key} has been reset"
+                }
+            )
     except Exception as e:
         log(f'exception in /ait/resetJoinkey: {e}')
         return JSONResponse(
@@ -390,12 +403,17 @@ def startStream(request_model: AitStartConversationRequest, fastapi_request: Req
                 stream_url = config.icecast_client.stream_endpoint_prefix + join_key
                 return JSONResponse(
                     status_code=200,
-                    content=f'AIT conversation with join_key {join_key} is already running. You can listen to the audio stream at {stream_url} as region audio or using VLC Media player.'
+                    content={
+                        "info":f'AIT conversation with join_key {join_key} exists already. You can listen to the audio stream at {stream_url} as region audio or using VLC Media player.',
+                        "stream_url": stream_url
+                    }
                 )
             else:
                 return JSONResponse(
                     status_code=200,
-                    content=f'AIT conversation with join_key {join_key} is already running.'
+                    content={
+                        "info":f'AIT conversation with join_key {join_key} exists already.'
+                    }
                 )
         else:
             _ = get_or_create_ait_instance(join_key)
@@ -403,12 +421,15 @@ def startStream(request_model: AitStartConversationRequest, fastapi_request: Req
                 stream_url = config.icecast_client.stream_endpoint_prefix + join_key
                 return JSONResponse(
                     status_code=200,
-                    content=f'Started AIT conversation with join_key {join_key}. You can listen to the audio stream at {stream_url} as region audio or using VLC Media player.'
+                    content={
+                        "info":f'Started AIT conversation with join_key {join_key}. You can listen to the audio stream at {stream_url} as region audio or using VLC Media player.',
+                        "stream_url": stream_url
+                    }
                 )
             else:
                 return JSONResponse(
                     status_code=200,
-                    content=f'Started AIT conversation with join_key {join_key}.'
+                    content={"info":f'Started AIT conversation with join_key {join_key}.'}
                 )
 
     except Exception as e:
@@ -451,22 +472,32 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
         
         log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio: message: {request_model.message} -> {filename}')
         
-        return JSONResponse(
-            status_code=200,
-            content={
-                "filename": filename,
-                "status": "success",
-                
-            }
-        )
-        
+        if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
+            stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "filename": filename,
+                    "status": "success",
+                    "stream_url": stream_url
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "filename": filename,
+                    "status": "success"
+                }
+            )
+            
     except Exception as e:
         log(f'exception in /ait/generateAudio: {e}')
         log(f'stack: {traceback.print_exc()}')
         return JSONResponse(
             status_code=500,
             content={
-                "message_id": request_model.message_id,
                 "error": f"Internal server error: {str(e)}"
             }
         )

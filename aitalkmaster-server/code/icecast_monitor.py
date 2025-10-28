@@ -7,6 +7,8 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 import requests
+import shutil
+from pathlib import Path
 
 from code.aitalkmaster_utils import stop_liquidsoap
 from code.shared import config, log
@@ -72,6 +74,24 @@ def icecast_list_mounts() -> list[str]:
     if config.icecast_client:
         return get_mounts(config.icecast_client)
     return []
+    
+
+def delete_active_icecast_directory(join_key: str):
+    """Delete the active icecast directory"""
+    
+    active_dir = Path(f'./generated-audio/active/{join_key}')
+    if active_dir.exists():
+        shutil.rmtree(active_dir)
+        log(f"Deleted active icecast directory: {active_dir}")
+        return True
+    else:
+        log(f"Active icecast directory not found: {active_dir}")
+    return False
+
+def get_active_directories() -> list[str]:
+    """Get the detached active directories"""
+    active_directories = Path('./generated-audio/active').glob('*')
+    return [directory.name for directory in active_directories if directory.is_dir()]
 
 def background_aitalkmaster_monitor():
     """Background thread that regularly checks if ait instances are still active"""
@@ -128,9 +148,19 @@ def background_aitalkmaster_monitor():
                     stop_liquidsoap(join_key)
                     reset_aitalkmaster(join_key)
                     del active_aitalkmaster_instances[join_key]
+
+                    delete_active_icecast_directory(join_key)
                     log(f"Removed inactive ait instance: {join_key}")
 
-            
+
+            active_directories = get_active_directories()
+            log(f"Active directories: {active_directories}")
+
+            for directory in active_directories:
+                if directory not in active_aitalkmaster_instances.keys():
+                    delete_active_icecast_directory(directory)
+                    log(f"Deleted detached active icecast directory: {directory}")
+
             # Sleep for 30 seconds before next check
             time.sleep(30)
             

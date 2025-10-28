@@ -10,13 +10,13 @@ class GenerateGetMessageResponseRequest(BaseModel):
 class GenerateRequest(BaseModel):
     message_id: str
     message: str
-    model: str
-    system_instructions: str
+    system_instructions: Optional[str] = ""
+    model: Optional[str] = ""
     options: Optional[dict] = {}
 
 # Conversation requests (single-character conversations with history, no audio streaming)
 class ConversationStartRequest(BaseModel):
-    model: str
+    model: Optional[str] = ""
     system_instructions: Optional[str] = ""
     options: Optional[dict] = {}
 
@@ -35,8 +35,8 @@ class AitPostMessageRequest(BaseModel):
     join_key: str
     username: str # name of the agent that said the message
     message: str
-    model: str
-    system_instructions: str
+    model: Optional[str] = ""
+    system_instructions: Optional[str] = ""
     charactername: str
     message_id: str
     audio_voice: Optional[str] = ""

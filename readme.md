@@ -18,8 +18,7 @@ They are running on the same domain at different ports:
 |----------|------------|--------|
 | AI Talkmaster Port | 6000 | 7000 |
 | AI Talkmaster URL | http://hg.hypergrid.net:6000 | http://hg.hypergrid.net:7000 |
-| Icecast Port | 6010 | 7010 |
-| Icecast Stream URL | http://hg.hypergrid.net:6010/stream/{join_key} | http://hg.hypergrid.net:7010/stream/{join_key} |
+| Icecast Stream URL | http://hg.hypergrid.net:6000/ait/stream/{join_key} | http://hg.hypergrid.net:7000/ait/stream/{join_key} |
 | [Daily Usage Limit](#daily-usage-limit) | 1.000.000 Tokens per IP | 100.000 Tokens per IP |
 
 The scripts in [lsl-scripts](./lsl-scripts/) use the Open-Source instance, see ait_endpoint variable.
@@ -115,11 +114,11 @@ Chat with (multiple) AI characters.
 - `POST /ait/startConversation` - Start Conversation (and Audio stream) (it is not required to call this before postMessage or generateAudio)
 - `POST /ait/resetJoinkey` - Reset AI instance (history)
 - `POST /ait/generateAudio` - Generate audio from text
-
+- `GET /ait/stream/{join_key}` - Stream for OpenSim region audio or VLC Media Player's Network stream
 
 #### Audio Stream
-AI Talkmaster conversations can be streamed to Icecast when configured properly, the AI Talkmaster conversations are then available as audio streams at the following URL:
-http://{aitalkmasterUrl}:{IcecastPort}/stream/{join_key}
+
+AI Talkmaster conversations can be streamed to Icecast. Calls to /ait/startConversation and /ait/generateAudio return the URL of the audio stream.
 
 
 This stream URL can be set as audio source for parcel sound in OpenSimulator regions:

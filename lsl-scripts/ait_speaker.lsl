@@ -446,8 +446,13 @@ state inactive
         }
 
         if (request_id == startConversationId) {
-            llOwnerSay(body);
-            return;
+            if (status == 200) {
+                string info = llJsonGetValue(body, ["info"]);
+                llOwnerSay(info);
+
+            } else {
+                llOwnerSay("Status code: " + (string) status + " with body " + body);
+            }
         }
     }
 

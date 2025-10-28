@@ -133,6 +133,23 @@ default
         }
     }
 
+    http_response(key request_id, integer status, list metadata, string body)
+    {
+        
+        if (status == 200) {
+            string stream_url = llJsonGetValue(body, ["stream_url"]);
+            string defaultModel = llJsonGetValue(body, ["default_model"]);
+
+            if (stream_url!=""){
+                llSay(0, "Audio Stream is available at: " + stream_url);
+            }
+    
+        } else {
+            llOwnerSay("Error:" + (string) status + " - " + body);
+        }
+        
+    }
+
     touch_start(integer total_number)
     {
         key toucher = llDetectedKey(0);

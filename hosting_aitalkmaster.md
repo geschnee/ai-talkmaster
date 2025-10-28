@@ -12,6 +12,12 @@ Configuration and hosting examples are included at [docker-hosting](./docker-hos
 - OpenAI Text without Audio
 
 
+The docker-compose files that include audio generation and streaming via Icecast also include an Nginx server. The Nginx server hides the Icecast server stream endpoints until a stream is created in AI Talkmaster (/ait/ endpoints).
+The stream requests get proxied to Icecast when a stream is running.
+This Nginx server makes it possible to use the same port for AI Talkmaster and the Icecast stream.
+
+
+
 ## Open-source hosting
 
 ### Chat Client Ollama
