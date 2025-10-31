@@ -29,8 +29,8 @@ Set mode=="ollama" in the chat client config.
 
 In the example docker-compose files and config files in aitalkmaster-server/config we assume Ollama is running on the host machine.
 
-By default Ollama is only accessible from the very same host it is running on, see [FAQ](https://docs.ollama.com/faq).
-We use the docker-compose-nginx.yml to make the Ollama available on port 11433 from the docker containers using host.docker.internal as address.
+By default Ollama is only accessible from localhost, see [FAQ](https://docs.ollama.com/faq). [Setting the OLLAMA_HOST variable](https://docs.ollama.com/faq#how-do-i-configure-ollama-server%3F) to "0.0.0.0:11434" makes it available to all connections.
+
 
 Ollama provides a lot of [options](https://github.com/ollama/ollama/blob/main/docs/modelfile.md) for generating text responses, they can be sent to AI Talkmaster using the "options" parameter. This provides AI Talkmaster users more control over the behaviour.
 
@@ -60,3 +60,15 @@ The rate limiting throttles requests for IPs based on the amount of tokens (text
 
 What IP do LSL-Scripts use? 
 Since the scripts are executed by the simulator, the IP is the one of the region/parcel host server.
+
+
+
+## Hosting with SSL
+
+Nginx can be used to host AI Talkmaster using https. Unfortunately the Icecast audio stream cannot be used with https as audio OpenSimulator.
+
+Hosting using SSL requires some changes to the nginx.conf file and requires that you have created your own SSL certificate.
+
+We used this [tutorial](https://www.youtube.com/watch?v=J9jKKeV1XVE) and [website](https://www.programonaut.com/setup-ssl-with-docker-nginx-and-lets-encrypt/) to create our certificate and nginx config.
+
+

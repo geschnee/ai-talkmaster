@@ -10,7 +10,7 @@ integer listener;
 string join_key;
 
 
-string ait_endpoint = "http://hg.hypergrid.net:6000";
+string ait_endpoint = "https://hg.hypergrid.net:6000";
 
 string joinkeyNotecardName = "join_key";
 key joinkeyNotecardQueryId;

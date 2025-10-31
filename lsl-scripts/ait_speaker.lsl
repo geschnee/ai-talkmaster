@@ -13,7 +13,7 @@ integer command_channel = 8;
 // State management
 integer isActive = 0; // 0 = inactive, 1 = active
 
-string ait_endpoint = "http://hg.hypergrid.net:6000";
+string ait_endpoint = "https://hg.hypergrid.net:6000";
 
 // Visual feedback colors
 vector inactiveColor = <0.2, 0.2, 0.2>; // Dark gray for inactive

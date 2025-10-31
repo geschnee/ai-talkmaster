@@ -15,7 +15,7 @@ float reserveTime = 180.0;
 float pollFreq = 2.0;
 float stopwatch;
 
-string ait_endpoint = "http://hg.hypergrid.net:6000";
+string ait_endpoint = "https://hg.hypergrid.net:6000";
 
 
 float conversation_time=0;
@@ -209,6 +209,9 @@ transmitMessage(string username, string message){
 
     // do not listen to public channel when polling
     llListenRemove(listener_public_channel);
+    
+    // Show polling indicator
+    llSetText("...", <1.0, 1.0, 0.5>, 1.0);
 
     ait_postMessage(pollingMessageId, username, message);
 }
@@ -291,6 +294,9 @@ default
 
 
         llListen(command_channel, "","","");
+        
+        // Clear any floating text on script start
+        llSetText("", ZERO_VECTOR, 0.0);
 
     }
 
@@ -597,6 +603,9 @@ default
                 // start listening to chat messages again
                 pollingForResponse=0;
                 listener_public_channel = llListen(0, "", "", "");
+                
+                // Clear polling indicator
+                llSetText("", ZERO_VECTOR, 0.0);
 
                 string response = llJsonGetValue(body, ["response"]);
                 
@@ -626,6 +635,9 @@ default
             llOwnerSay("HTTP Error " + (string)status + ": " + body);
             pollingForResponse = 0;
             listener_public_channel = llListen(0, "", "", "");
+            
+            // Clear polling indicator
+            llSetText("", ZERO_VECTOR, 0.0);
         }
     }
 
@@ -639,6 +651,9 @@ default
                 pollingForResponse = 0;
                 // Resume listening to public channel
                 listener_public_channel = llListen(0, "", "", "");
+                
+                // Clear polling indicator
+                llSetText("", ZERO_VECTOR, 0.0);
                 return;
             }
             ait_getMessageResponse(pollingMessageId);

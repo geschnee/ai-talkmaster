@@ -4,7 +4,7 @@
 // When the user clicks the object, it sends the user's next message to the AI Talkmaster server and prints the response.
 // More details at https://github.com/geschnee/ai-talkmaster
 
-string ait_endpoint = "http://hg.hypergrid.net:6000";
+string ait_endpoint = "https://hg.hypergrid.net:6000";
 
 
 integer listener;

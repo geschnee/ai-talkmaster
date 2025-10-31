@@ -72,5 +72,5 @@ def get_available_voices():
 def block_everything(path: str):
     return JSONResponse(
             status_code=401,
-            content={"message": "This endpoint is not available."}
+            content={"message": "Welcome to AI Talkmaster, this endpoint is not available. Try /generate/postMessage for the most basic use case. Visit https://github.com/geschnee/ai-talkmaster/blob/main/readme.md for more information."}
         )

@@ -15,7 +15,7 @@ float reserveTime = 180.0;
 float pollFreq = 2.0;
 float stopwatch;
 
-string ait_endpoint = "http://hg.hypergrid.net:6000";
+string ait_endpoint = "https://hg.hypergrid.net:6000";
 
 
 float conversation_time=0;

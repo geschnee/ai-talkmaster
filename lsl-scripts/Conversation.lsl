@@ -4,7 +4,7 @@
 // This conversation has history. The user and object can talk back-and-forth.
 // More details at https://github.com/geschnee/ai-talkmaster
 
-string ait_endpoint = "http://hg.hypergrid.net:6000";
+string ait_endpoint = "https://hg.hypergrid.net:6000";
 
 integer com_channel = 0;
 integer listener;

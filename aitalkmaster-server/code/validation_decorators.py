@@ -31,7 +31,6 @@ def check_audio_model(model: str) -> tuple[bool, list]:
         
     return True, available_models
         
-
 def validate_chat_model_decorator(func):
     @wraps(func)
     def wrapper(request_model, fastapi_request: Request, *args, **kwargs):
@@ -96,9 +95,6 @@ def validate_audio_decorator(func):
         return func(request_model, fastapi_request, *args, **kwargs)
     
     return wrapper
-
-
-
 
 def rate_limit_decorator(func):
     """

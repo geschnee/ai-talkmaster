@@ -10,15 +10,14 @@ We are also hosting 2 instances for public use.
 
 # Hosted AI Talkmaster
 
-We host 2 Instances of AI Talkmaster at http://hg.hypergrid.net, one using open-source exclusively and another using OpenAI exclusively. We are hosting the 2 instances for public use until 2026, then we might shutdown the OpenAI instance.
+We host 2 Instances of AI Talkmaster at https://hg.hypergrid.net, one using open-source exclusively and another using OpenAI exclusively. We are hosting the 2 instances for public use until 2026, then we might shutdown the OpenAI instance.
 
 They are running on the same domain at different ports:
 
 | Instance | Open-Source | OpenAI |
 |----------|------------|--------|
-| AI Talkmaster Port | 6000 | 7000 |
-| AI Talkmaster URL | http://hg.hypergrid.net:6000 | http://hg.hypergrid.net:7000 |
-| Icecast Stream URL | http://hg.hypergrid.net:6000/ait/stream/{join_key} | http://hg.hypergrid.net:7000/ait/stream/{join_key} |
+| AI Talkmaster URL | https://hg.hypergrid.net:6000 | https://hg.hypergrid.net:7000 |
+| Icecast Stream URL http | http://hg.hypergrid.net:6010/ait/stream/{join_key} | http://hg.hypergrid.net:7010/ait/stream/{join_key} |
 | [Daily Usage Limit](#daily-usage-limit) | 1.000.000 Tokens per IP | 100.000 Tokens per IP |
 
 The scripts in [lsl-scripts](./lsl-scripts/) use the Open-Source instance, see ait_endpoint variable.
@@ -118,7 +117,7 @@ Chat with (multiple) AI characters.
 
 #### Audio Stream
 
-AI Talkmaster conversations can be streamed to Icecast. Calls to /ait/startConversation and /ait/generateAudio return the URL of the audio stream.
+AI Talkmaster conversations can be streamed to Icecast. Calls to /ait/startConversation, /ait/resetJoinkey and /ait/generateAudio return the URL of the audio stream.
 
 
 This stream URL can be set as audio source for parcel sound in OpenSimulator regions:
