@@ -42,7 +42,7 @@ integer systemCurrentLine = 0;
 list systemNotecardLines = [];
 
 
-string charactername;
+string charactername="";
 string model="";
 string systemInstructions;
 string audio_instructions;
@@ -60,7 +60,7 @@ list optionsList = [];
 
 string joinkeyNotecardName = "join_key";
 key joinkeyNotecardQueryId;
-string join_key;
+string join_key = "";
 
 // Validation variables
 key modelsValidationId;
@@ -71,22 +71,22 @@ key postMessageId;
 
 integer modelsValidated = 0;
 integer audioIsValidated = 0;
-
+integer fullyValidated = 0;
 
 integer isActive = 0;
 
 string pollingMessageId;
 
-// Function to split text into chunks
-list splitText(string text)
-{
+// Function to print response text, splitting into chunks if necessary
+printResponse(string response) {
+    integer textLength = llStringLength(response);
     list chunks = [];
-    integer textLength = llStringLength(text);
     
-    // If text is already short enough, return it as a single chunk
+    // If text is already short enough, print it directly
     if (textLength <= MAX_LENGTH)
     {
-        return [text];
+        llSay(0, response);
+        return;
     }
     
     integer currentPos = 0;
@@ -111,7 +111,7 @@ list splitText(string text)
             // Find the rightmost newline in our range
             for (i = endPos - 1; i >= currentPos; --i)
             {
-                if (newlinePos==-1 && llGetSubString(text, i, i) == "\n")
+                if (newlinePos==-1 && llGetSubString(response, i, i) == "\n")
                 {
                     newlinePos = i;
                 }
@@ -130,7 +130,7 @@ list splitText(string text)
                 // Find the rightmost space in our range
                 for (i = endPos - 1; i >= currentPos; --i)
                 {
-                    if (spacePos == -1 && llGetSubString(text, i, i) == " ")
+                    if (spacePos == -1 && llGetSubString(response, i, i) == " ")
                     {
                         spacePos = i;
                     }
@@ -145,13 +145,19 @@ list splitText(string text)
         }
         
         // Add the chunk to our list
-        chunks += [llGetSubString(text, currentPos, endPos - 1)];
+        chunks += [llGetSubString(response, currentPos, endPos - 1)];
         currentPos = endPos;
     }
     
-    return chunks;
+    // Print all chunks with numbering
+    integer i;
+    for (i = 0; i < llGetListLength(chunks); ++i)
+    {
+        string chunk = llList2String(chunks, i);
+        integer i_plus = i + 1;
+        llSay(0, i_plus + " " + chunk);
+    }
 }
-
 
 add_stringlist_option(string optionname, string value) {
     optionsList += [optionname, llList2Json(JSON_ARRAY, [value])];
@@ -192,7 +198,7 @@ ait_postMessage(string message_id, string username, string message) {
 ait_getMessageResponse(string message_id) {
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "message_id", message_id]);
 
-    getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    key getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 ait_startConversation(){
@@ -206,6 +212,7 @@ transmitMessage(string username, string message){
     pollingMessageId = llGenerateKey();
     pollingForResponse=1;
     polling_start_time = llGetUnixTime(); // Record when polling started
+    llSetTimerEvent(1.0);
 
     // do not listen to public channel when polling
     llListenRemove(listener_public_channel);
@@ -245,8 +252,8 @@ integer isValueInJsonArray(string jsonString, string value)
 // Function to validate all parameters after they are loaded
 validateAllParameters()
 {
-    if (charactername == "") {
-        llOwnerSay("Error: charactername is missing. Cannot validate.");
+    if (join_key=="" || systemInstructions=="" || charactername=="") {
+        // Cannot start validation, join_key, system instructions or charactername is missing
         return;
     }
     llOwnerSay("Starting parameter validation...");
@@ -257,8 +264,19 @@ validateAllParameters()
     validateAudioParameters(audio_voice, audio_model);
 }
 
+// Function to truncate command for dialog (max 24 characters)
+string truncateDialogCommand(string commandPrefix, string name)
+{
+    string fullCommand = commandPrefix + name;
+    if (llStringLength(fullCommand) <= 23) {
+        return fullCommand;
+    }
+    return llGetSubString(fullCommand, 0, 22);
+}
+
+
 printInfo(){
-    llOwnerSay("on channel " + command_channel + " to activate type the following: activate " + charactername);
+    llOwnerSay("on channel " + command_channel + " to activate type the following: Activate " + charactername);
     llOwnerSay("on channel " + command_channel + " to activate only this character, type the following: spotlight " + charactername);
     llOwnerSay("on channel " + command_channel + " to activate all characters, type the following: ActivateAllCharacters");
 }
@@ -291,21 +309,18 @@ default
 
         joinkeyNotecardQueryId = llGetNotecardLine(joinkeyNotecardName, 0);
 
-
-
-        llListen(command_channel, "","","");
-        
         // Clear any floating text on script start
         llSetText("", ZERO_VECTOR, 0.0);
-
     }
 
     touch_start(integer total_number)
     {
-        if (modelsValidated && audioIsValidated) {
-            printInfo();
+        key toucher = llDetectedKey(0);
+        
+        if (fullyValidated) {
+            showDialog(toucher);
         } else {
-            llOwnerSay("Configuration not validated. Please check that 'llm-parameters', 'llm-system' and 'join_key' notecards exist and contain valid data. Reset the script for more details.");
+            llInstantMessage(toucher, "Configuration not validated. Please check that 'llm-parameters', 'llm-system' and 'join_key' notecards exist and contain valid data. Reset the script for more details.");
         }
     }
 
@@ -361,6 +376,11 @@ default
             }
             else
             {
+
+                if (charactername==""){
+                    llOwnerSay("You need to add the parameter charactername in " + parametersNotecardName + " notecard!");
+                    return;
+                }
                 
                 // Now you have the entire notecard as a single string
                 llOwnerSay("Parameter notecard content loaded:");
@@ -369,8 +389,6 @@ default
                 llOwnerSay("audio_instructions: " + audio_instructions);
                 llOwnerSay("audio_voice: " + audio_voice);
                 llOwnerSay("audio_model: " + audio_model);
-                
-
                 
                 validateAllParameters();
             }
@@ -395,9 +413,15 @@ default
                 // Combine all lines into a single string with newlines
                 systemInstructions = llDumpList2String(systemNotecardLines, "\\n");
                 
+                if (systemInstructions=="") {
+                    llOwnerSay(systemNotecardName + " should not be empty for use as llm system instructions");
+                    return;
+                }
                 // Now you have the entire notecard as a single string
-                llOwnerSay("System notecard content loaded:");
-                llOwnerSay("system: " + systemInstructions);
+                llOwnerSay("System instructions have been loaded:");
+                llOwnerSay(systemInstructions);
+
+                validateAllParameters();
             }
         }
         if (query_id == joinkeyNotecardQueryId)
@@ -407,21 +431,25 @@ default
                 string line = [data];
 
                 join_key = line;
-                llOwnerSay("join_key has been read " + join_key);
-                llSetTimerEvent(1.0);
+
+                if (join_key=="") {
+                    llOwnerSay(joinkeyNotecardName + " has to contain a non-empty string for use as join_key");
+                    return;
+                }
+                llOwnerSay("join_key has been read: " + join_key);
+            } else {
+                if (join_key=="") {
+                    llOwnerSay(joinkeyNotecardName + " has to contain a non-empty string for use as join_key");
+                    return;
+                }
+                validateAllParameters();
             }
         }
-
     }
 
     listen(integer channel, string name, key id, string message)
     {
-        if (id == llGetKey())
-        {
-            return;
-        }
-
-
+        llOwnerSay("heard: " + message + " on channel " + (string) channel);
         if(channel == 0) {
             if (isActive==0){
                 return;
@@ -440,11 +468,20 @@ default
             username = llStringTrim(username, 3);
 
             transmitMessage(username, message);
-            
         }
+
+        
+
         if (channel == command_channel) {
             if (id != llGetOwner()) {
+                // uncomment here to allow anyone to trigger config commands
+                llSay(0, "you are not allowed ...");
                 llInstantMessage(id, "You are not allowed to use config commands.");
+                return;
+            }
+
+            if (fullyValidated==0){
+                llInstantMessage(id, "Parameters are not fully validated");
                 return;
             }
 
@@ -459,37 +496,40 @@ default
                 llOwnerSay(charactername + " has been deactivated using DeactivateAllCharacters command");
                 isActive = 0;
             }
-            string activateAgentCommand = "activate " + charactername;
-            if (message == activateAgentCommand){
+            string activateAgentCommand = "Activate " + charactername;
+            string activateAgentCommandShort = truncateDialogCommand("Activate ", charactername);
+            llSay(0, "activate command: " + activateAgentCommand);
+            llSay(0, "activate command short: " + activateAgentCommandShort);
+            if (message == activateAgentCommand || message == activateAgentCommandShort){
                 listener_public_channel = llListen(0, "","","");
                 llOwnerSay(charactername + " has been activated");
                 isActive = 1;
             }
-            string deactivateAgentCommand = "deactivate " + charactername;
-            if (message == deactivateAgentCommand){
+            string deactivateAgentCommand = "Deactivate " + charactername;
+            string deactivateAgentCommandShort = truncateDialogCommand("Deactivate ", charactername);
+            if (message == deactivateAgentCommand || message == deactivateAgentCommandShort){
                 llOwnerSay(charactername + " has been deactivated");
                 isActive = 0;
             }
-            string spotlightActivateCommand = "spotlight " + charactername;
-            if (message == spotlightActivateCommand){
+            string spotlightActivateCommand = "Spotlight " + charactername;
+            string spotlightActivateCommandShort = truncateDialogCommand("Spotlight ", charactername);
+            if (message == spotlightActivateCommand || message == spotlightActivateCommandShort){
                 llOwnerSay(charactername + " has been activated by spotlight command");
                 listener_public_channel = llListen(0, "","","");
                 isActive = 1;
             } else {
                 string commandName = llParseString2List(message, [" "], [])[0];
-                if (commandName == "spotlight") {
+                if (commandName == "Spotlight") {
                     llOwnerSay(charactername + " has been deactivated by spotlight command");
                     isActive = 0;
                 }
             }
 
-            if (llGetListLength(llParseString2List(message, [" "], [])) >= 2) {
-                string command = llParseString2List(message, [" "], [])[0] + " " + llParseString2List(message, [" "], [])[1];
-                if (command == "direct "+ charactername) {
-                    string instruction = llGetSubString(message, llStringLength(command), -1);
-                    llOwnerSay(name + " has sent a director command to the server: "+ instruction);
-                    transmitMessage("Director", instruction);
-                }
+            string directActivateCommand = "Direct " + charactername;
+            if (llSubStringIndex(message, directActivateCommand) == 0) {
+                string instruction = llGetSubString(message, llStringLength(directActivateCommand), -1);
+                llOwnerSay(name + " has sent a director command to the server: "+ instruction);
+                transmitMessage("Director", instruction);
             }
         }
     }
@@ -517,8 +557,11 @@ default
 
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
+                    fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
+                    llListen(command_channel, "","","");
                     ait_startConversation();
+                    printInfo();
                 }
         
             } else {
@@ -572,8 +615,11 @@ default
                 
                 // Final validation summary
                 if (modelsValidated && audioIsValidated) {
+                    fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
+                    llListen(command_channel, "","","");
                     ait_startConversation();
+                    printInfo();
                 }
                 
             } else {
@@ -583,7 +629,8 @@ default
         }
 
         if (request_id == startConversationId) {
-            llOwnerSay(body);
+            string info = llJsonGetValue(body, ["info"]);
+            llSay(0, info);
             return;
         }
         
@@ -609,17 +656,18 @@ default
 
                 string response = llJsonGetValue(body, ["response"]);
                 
-                
+                printResponse(response);
 
-                list chunks = splitText(response);
-                integer i;
-                for (i = 0; i < llGetListLength(chunks); ++i)
-                {
-                    string chunk = llList2String(chunks, i);
-                    integer i_plus = i + 1;
-                    llSay(0, i_plus + " " + chunk);
+                return;
+            } else if (status != 0 && status != 425) {
+                // Stop polling on any error status (not 0, not 200, not 425)
+                if (pollingForResponse == 1) {
+                    pollingForResponse = 0;
+                    listener_public_channel = llListen(0, "", "", "");
+                    // Clear polling indicator
+                    llSetText("", ZERO_VECTOR, 0.0);
+                    llSay(0, "HTTP Error " + (string)status + ": " + body + " - Stopping polling");
                 }
-
                 return;
             }
         }
@@ -629,6 +677,9 @@ default
             return;
         } else if (0 == status) {
             // request Timeout in OpenSimulator: returns code 0 after 30 seconds
+            return;
+        } else if (200 == status) {
+            // missed 200 (ID changed)
             return;
         } else {
             // Report all other status codes to owner
@@ -667,4 +718,17 @@ default
             llResetScript();
         }
     }
+}
+
+// Function to show dialog interface
+showDialog(key user)
+{
+    string status_text = (isActive == 1) ? "Active" : "Inactive";
+    string activateCmd = truncateDialogCommand("Activate ", charactername);
+    string deactivateCmd = truncateDialogCommand("Deactivate ", charactername);
+    string spotlightCmd = truncateDialogCommand("Spotlight ", charactername);
+    llDialog(user, 
+        "AIT Character: " + charactername + "\nJoin Key: " + join_key + "\nStatus: " + status_text + "\n\nWhat would you like to do?",
+        [activateCmd, deactivateCmd, spotlightCmd, "Close"], 
+        command_channel);
 }

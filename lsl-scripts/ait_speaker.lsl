@@ -59,82 +59,7 @@ integer max_response_length = 16384;
 
 // Audio generation variables
 string audioGenerationMessageId;
-
-// Function to split text into chunks
-list splitText(string text)
-{
-    list chunks = [];
-    integer textLength = llStringLength(text);
-    
-    // If text is already short enough, return it as a single chunk
-    if (textLength <= 1024)
-    {
-        return [text];
-    }
-    
-    integer currentPos = 0;
-    
-    while (currentPos < textLength)
-    {
-        integer endPos = currentPos + 1024;
-        
-        // Make sure we don't go beyond the text length
-        if (endPos > textLength)
-        {
-            endPos = textLength;
-        }
-        
-        // If we're not at the end of the text, try to find a natural breaking point
-        if (endPos < textLength)
-        {
-            // First try to break at a newline
-            integer newlinePos = -1;
-            integer i;
-            
-            // Find the rightmost newline in our range
-            for (i = endPos - 1; i >= currentPos; --i)
-            {
-                if (newlinePos==-1 && llGetSubString(text, i, i) == "\n")
-                {
-                    newlinePos = i;
-                }
-            }
-            
-            if (newlinePos != -1)
-            {
-                // Found a newline, break there (include the newline in the chunk)
-                endPos = newlinePos + 1;
-            }
-            else
-            {
-                // No newline found, try to break at a space
-                integer spacePos = -1;
-                
-                // Find the rightmost space in our range
-                for (i = endPos - 1; i >= currentPos; --i)
-                {
-                    if (spacePos == -1 && llGetSubString(text, i, i) == " ")
-                    {
-                        spacePos = i;
-                    }
-                }
-                
-                if (spacePos != -1)
-                {
-                    // Found a space, break there (include the space in the chunk)
-                    endPos = spacePos + 1;
-                }
-            }
-        }
-        
-        // Add the chunk to our list
-        chunks += [llGetSubString(text, currentPos, endPos - 1)];
-        currentPos = endPos;
-    }
-    
-    return chunks;
-}
-
+key generateAudioId;
 
 add_stringlist_option(string optionname, string value) {
     optionsList += [optionname, llList2Json(JSON_ARRAY, [value])];
@@ -164,14 +89,6 @@ add_option(string optionname, string value) {
     }
 }
 
-string ReplaceQuotesForJson(string input)
-{
-    // Split on "
-    list parts = llParseString2List(input, ["\""], []);
-    // Join back with replacement
-    return llDumpList2String(parts, "\\\"");
-}
-
 // Function to send message to generateAudio endpoint
 ait_generateAudio(string username, string message)
 {
@@ -179,7 +96,7 @@ ait_generateAudio(string username, string message)
 
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
 
-    llHTTPRequest(ait_endpoint + "/ait/generateAudio", 
+    generateAudioId = llHTTPRequest(ait_endpoint + "/ait/generateAudio", 
         [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], 
         jsonBody);
 }
@@ -532,12 +449,18 @@ state active
     http_response(key request_id, integer status, list metadata, string body)
     {
         // Handle generateAudio responses
-        if(200 == status) {
-            llOwnerSay("Audio generated successfully");
-        } else {
-            // Report all other status codes to owner
-            llOwnerSay("HTTP Error " + (string)status + ": " + body);
+        if (request_id == generateAudioId) {
+            if(200 == status) {
+                llOwnerSay("Audio generated successfully");
+            } else {
+                // Report all other status codes to owner
+                llOwnerSay("HTTP Error " + (string)status + ": " + body);
+            }
+            return;
         }
+        
+        // Unexpected behaviour, AI Talkmaster audio generation does not use code 425 and should not run into timeouts (code 0)
+        llOwnerSay("HTTP Error " + (string)status + ": " + body);
     }
 
     touch_start(integer total_number)

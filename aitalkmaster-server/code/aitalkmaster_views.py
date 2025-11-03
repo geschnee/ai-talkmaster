@@ -183,7 +183,6 @@ def get_response_ollama(request: AitPostMessageRequest, ait_instance: Aitalkmast
     
     response_msg = remove_name(response["message"]["content"], request.charactername)
 
-
     ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     increment_resource_usage(ip_address, response["eval_count"])
     
@@ -213,7 +212,7 @@ def build_filename(request: AitPostMessageRequest, ait_instance: AitalkmasterIns
     
     sequence_str = ait_instance.generate_sequence_str()
     
-    fn = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.charactername}_{request.message_id}_{request.audio_voice}.mp3'
+    fn = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.charactername}_{request.message_id}_{request.audio_voice}_{uuid.uuid4()}.mp3' # we need a random component here (uuid) since the liquidsoap uses the filenames to check if the file was already played
     return fn
 
 
@@ -366,9 +365,9 @@ def resetJoinkey(request_model: AitResetJoinkeyRequest, fastapi_request: Request
         if join_key in active_aitalkmaster_instances.keys():
             reset_aitalkmaster(join_key)
 
-            log(f'conv has been reset: {join_key}')
+            log(f'AI Talkmaster: conversation has been reset: {join_key}')
         else:
-            log(f'conv resetRequest for key but key not found: {join_key}')
+            log(f'AI Talkmaster: resetRequest for key but key not found: {join_key}')
 
         if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
             stream_url = config.icecast_client.stream_endpoint_prefix + join_key
@@ -464,7 +463,7 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
         sequence_str = ait_instance.generate_sequence_str()
         
         # Generate filename with sequence number
-        filename = f'./generated-audio/active/{request_model.join_key}/{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}.mp3'
+        filename = f'./generated-audio/active/{request_model.join_key}/{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}_{uuid.uuid4()}.mp3'
         
         save_audio(filename, request_model.message, request_model.audio_voice, request_model.audio_model, request_model.audio_instructions, fastapi_request)
 

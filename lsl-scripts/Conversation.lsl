@@ -40,6 +40,11 @@ key modelsValidationId;
 integer modelsValidated = 0;
 integer validationInProgress = 0;
 
+// HTTP request tracking
+key startConversationId;
+key postMessageId;
+key getMessageResponseId;
+
 // Notecard completion tracking
 integer notecardsCompleted = 0;
 integer PARAMETERS_NOTECARD_COMPLETED = 1;
@@ -68,16 +73,16 @@ list optionParameters_floats = ["repeat_penalty","temperature","top_p","min_p"];
 list optionsList = [];
 
 
-// Function to split text into chunks
-list splitText(string text)
-{
+// Function to print response text, splitting into chunks if necessary
+printResponse(string response) {
+    integer textLength = llStringLength(response);
     list chunks = [];
-    integer textLength = llStringLength(text);
     
-    // If text is already short enough, return it as a single chunk
+    // If text is already short enough, print it directly
     if (textLength <= MAX_LENGTH)
     {
-        return [text];
+        llSay(0, response);
+        return;
     }
     
     integer currentPos = 0;
@@ -102,7 +107,7 @@ list splitText(string text)
             // Find the rightmost newline in our range
             for (i = endPos - 1; i >= currentPos; --i)
             {
-                if (newlinePos==-1 && llGetSubString(text, i, i) == "\n")
+                if (newlinePos==-1 && llGetSubString(response, i, i) == "\n")
                 {
                     newlinePos = i;
                 }
@@ -121,7 +126,7 @@ list splitText(string text)
                 // Find the rightmost space in our range
                 for (i = endPos - 1; i >= currentPos; --i)
                 {
-                    if (spacePos == -1 && llGetSubString(text, i, i) == " ")
+                    if (spacePos == -1 && llGetSubString(response, i, i) == " ")
                     {
                         spacePos = i;
                     }
@@ -136,13 +141,19 @@ list splitText(string text)
         }
         
         // Add the chunk to our list
-        chunks += [llGetSubString(text, currentPos, endPos - 1)];
+        chunks += [llGetSubString(response, currentPos, endPos - 1)];
         currentPos = endPos;
     }
     
-    return chunks;
+    // Print all chunks with numbering
+    integer i;
+    for (i = 0; i < llGetListLength(chunks); ++i)
+    {
+        string chunk = llList2String(chunks, i);
+        integer i_plus = i + 1;
+        llSay(0, i_plus + " " + chunk);
+    }
 }
-
 
 add_stringlist_option(string optionname, string value) {
     optionsList += [optionname, llList2Json(JSON_ARRAY, [value])];
@@ -199,11 +210,6 @@ integer isValueInJsonArray(string jsonString, string value)
 // Function to validate all parameters after they are loaded
 validateAllParameters()
 {
-    if (model == "") {
-        llOwnerSay("Error: Model parameter is missing. Cannot validate.");
-        return;
-    }
-    
     llOwnerSay("Starting parameter validation...");
     validateModel(model);
 }
@@ -225,7 +231,7 @@ start_conversation(string username) {
     string jsonBody = llList2Json(JSON_OBJECT, ["username", username, "model", model,"system_instructions", system, "options", optionstring]);
     
     string instructions = llReplaceSubString(system, "\"", "\\\"", 0);
-    llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    startConversationId = llHTTPRequest(ait_endpoint + "/conversation/start", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 conversation_postMessage(string conversation_key, string message) {
@@ -245,13 +251,13 @@ conversation_postMessage(string conversation_key, string message) {
 
     string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message", message, "message_id", (string) conversation_message_id]);
     
-    llHTTPRequest(ait_endpoint + "/conversation/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    postMessageId = llHTTPRequest(ait_endpoint + "/conversation/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 conversation_getMessageResponse(string conversation_key) {
     string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message_id", (string) conversation_message_id]);
 
-    llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    getMessageResponseId = llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 set_ready() {
@@ -262,6 +268,8 @@ set_ready() {
     username="";
     message="";
 
+    // Clear polling indicator
+    llSetText("", ZERO_VECTOR, 0.0);
 
     llSay(0, "Please click on me to start a new session.");
     llSay(0, "---");
@@ -287,6 +295,9 @@ default
         optionsList = [];
         parametersNotecardQueryId = llGetNotecardLine(parametersNotecardName, parametersCurrentLine);
         systemNotecardQueryId = llGetNotecardLine(systemNotecardName, systemCurrentLine);
+
+        // Clear any floating text on script start
+        llSetText("", ZERO_VECTOR, 0.0);
 
         set_ready();
     }
@@ -365,9 +376,14 @@ default
                 // Combine all lines into a single string with newlines
                 string entireContent = llDumpList2String(systemNotecardLines, "\n");
                 
+                if (entireContent == "") {
+                    llOwnerSay(systemNotecardName + " should not be empty for use as llm system instructions");
+                    return;
+                }
+                
                 // Now you have the entire notecard as a single string
-                llOwnerSay("System notecard content loaded:");
-                llOwnerSay("system: " + entireContent);
+                llOwnerSay("System instructions loaded from notecard:");
+                llOwnerSay(entireContent);
 
                 system = entireContent;
                 
@@ -432,9 +448,10 @@ default
             stopwatch=0;
             
             conversation_postMessage(conversation_key, message);
-            llSay(0, "Message is sent.");
             pollingResponse=1;
             polling_start_time = llGetUnixTime(); // Record when polling started
+            // Show polling indicator
+            llSetText("...", <1.0, 1.0, 0.5>, 1.0);
             llListenRemove(listener);
             llListenRemove(command_channel);
         }   
@@ -447,12 +464,19 @@ default
             if (status == 200) {
                 llOwnerSay("Models validation response received");
                 string chatModels = llJsonGetValue(body, ["chat_models"]);
-                if (isValueInJsonArray(chatModels, model)) {
-                    llOwnerSay("✓ Model '" + model + "' is valid");
+                string defaultModel = llJsonGetValue(body, ["default_model"]);
+
+                if (model==""){
+                    llOwnerSay("model was not specified in llm-parameters notecard, the AIT default model " + defaultModel + " will be used");
                     modelsValidated = 1;
                 } else {
-                    llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
-                    modelsValidated = 0;
+                    if (isValueInJsonArray(chatModels, model)) {
+                        llOwnerSay("✓ Model '" + model + "' is valid");
+                        modelsValidated = 1;
+                    } else {
+                        llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
+                        modelsValidated = 0;
+                    }
                 }
                 
                 validationInProgress = 0;
@@ -463,14 +487,15 @@ default
             return;
         }
         
-        if(200 == status) {
-            if (username == ""){
-                //llSay(0, "reset was called between request and response");
-                return;
-            }
-            string local_conversation_key = llJsonGetValue(body, ["conversation_key"]);
-           
-            if (local_conversation_key != conversation_key){
+        // Handle start conversation response
+        if (request_id == startConversationId) {
+            if (status == 200) {
+                if (username == ""){
+                    //llSay(0, "reset was called between request and response");
+                    return;
+                }
+                string local_conversation_key = llJsonGetValue(body, ["conversation_key"]);
+               
                 conversation_key = local_conversation_key;
                 llSay(0, "Please enter something you want to say to " + charactername + " in chat.");
                 // new conversation was started on backend
@@ -479,41 +504,70 @@ default
 
                 listener = llListen(com_channel, "", user, "");
                 llListen(command_channel, "", user, "");
+            } else {
+                llOwnerSay("Error starting conversation: HTTP " + (string)status + " - " + body);
+                llSay(0, "Sorry, there was an error starting the conversation. Please try again.");
+                set_ready();
+            }
+            return;
+        }
+        
+        // Handle postMessage and getMessageResponse responses
+        if (request_id == postMessageId || request_id == getMessageResponseId) {
+            if(200 == status) {
+                if (username == ""){
+                    //llSay(0, "reset was called between request and response");
+                    return;
+                }
+                
+                string message_id = llJsonGetValue(body, ["message_id"]);
+                if (message_id!=(string) conversation_message_id){
+                    return;
+                }
+
+                // start listening to user messages again
+                pollingResponse=0;
+                conversation_message_id=NULL_KEY;
+                listener = llListen(com_channel, "", user, "");
+                llListen(command_channel, "", user, "");
+                conversation_time = conversation_time + CONVERSATION_INCREMENT;
+
+                // Clear polling indicator
+                llSetText("", ZERO_VECTOR, 0.0);
+
+                string response = llJsonGetValue(body, ["response"]);
+
+                llSay(0, username+" that's for you: ");
+
+                printResponse(response);
+                
+                return;
+            } else if (status != 0 && status != 425) {
+                // Stop polling on any error status (not 0, not 200, not 425)
+                if (pollingResponse == 1) {
+                    pollingResponse = 0;
+                    conversation_message_id = NULL_KEY;
+                    listener = llListen(com_channel, "", user, "");
+                    llListen(command_channel, "", user, "");
+                    // Clear polling indicator
+                    llSetText("", ZERO_VECTOR, 0.0);
+                    llSay(0, "HTTP Error " + (string)status + ": " + body + " - Stopping polling");
+                } else {
+                    // Report error but we're not polling
+                    llOwnerSay("HTTP Error " + (string)status + ": " + body);
+                }
                 return;
             }
-
-            
-            string message_id = llJsonGetValue(body, ["message_id"]);
-            if (message_id!=(string) conversation_message_id){
-                return;
-            }
-
-            // start listening to user messages again
-            pollingResponse=0;
-            conversation_message_id=NULL_KEY;
-            listener = llListen(com_channel, "", user, "");
-            llListen(command_channel, "", user, "");
-            conversation_time = conversation_time + CONVERSATION_INCREMENT;
-
-
-            string response = llJsonGetValue(body, ["response"]);
-
-            llSay(0, username+" that's for you: ");
-
-            list chunks = splitText(response);
-            integer i;
-            for (i = 0; i < llGetListLength(chunks); ++i)
-            {
-                string chunk = llList2String(chunks, i);
-                integer i_plus = i + 1;
-                llSay(0, i_plus + " " + chunk);
-            }
-            
-        } else if (425 == status) {
+        }
+        
+        if (425 == status) {
             // 425 means the response is not yet available from AI talkmaster
             return;
         } else if (0 == status) {
             // request Timeout in OpenSimulator: returns code 0 after 30 seconds
+            return;
+        } else if (200 == status) {
+            // missed 200 (ID changed)
             return;
         } else {
             // Report all other status codes to owner
@@ -540,6 +594,8 @@ default
                 if (current_time - polling_start_time > polling_timeout) {
                     llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message");
                     pollingResponse = 0; // Stop polling
+                    // Clear polling indicator
+                    llSetText("", ZERO_VECTOR, 0.0);
                     llSay(0, "Sorry, the response took too long. Please try again.");
                     listener = llListen(com_channel, "", user, ""); // Resume listening
                     llListen(command_channel, "", user, "");

@@ -6,7 +6,7 @@ settings.init.force_start := true
 settings.server.telnet.port := 1234
 settings.server.telnet := true
 
-# make telnet availible from all addresses (supervisor docker container)
+# make telnet availible from all addresses (ai talkmaster docker container)
 settings.server.telnet.bind_addr := "0.0.0.0"
 
 log.file := true
@@ -84,6 +84,7 @@ def delete_stream(join_key) =
   then
     "Stream for join_key #{join_key} does not exists!"
   else
+    print("Stop streaming #{join_key}")
     shutdown = list.assoc(join_key, streams())
     shutdown()
     streams := list.filter((fun (el) -> fst(el) != join_key), streams())

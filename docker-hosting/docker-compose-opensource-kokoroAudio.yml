@@ -12,7 +12,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ../volumes/generated-audio:/app/generated-audio
+      - generated_audio_opensource:/app/generated-audio
       - ../volumes/aitalkmaster-logs:/app/logs
       - ../openai_key.txt:/app/openai_key.txt:ro
       - ../aitalkmaster-server/configs/docker-ollama-kokoro.yml:/app/config.yml:ro
@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
     volumes:
       - ../volumes/liquidsoap-logs:/var/log/liquidsoap
-      - ../volumes/generated-audio:/generated-audio:ro
+      - generated_audio_opensource:/generated-audio:ro
     environment:
       - LIQUIDSOAP_LOG_LEVEL=3
     depends_on:
@@ -72,7 +72,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ../volumes/nginx-logs:/var/log/nginx
-      - ../volumes/generated-audio:/generated-audio:ro
+      - generated_audio_opensource:/generated-audio:ro # nginx needs this to check if the stream is active
     depends_on:
       - aitalkmaster
       - icecast
@@ -88,3 +88,7 @@ services:
 networks:
   streaming-network:
     driver: bridge
+
+volumes:
+  generated_audio_opensource:
+    name: hosting_generated_audio_opensource

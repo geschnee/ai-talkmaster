@@ -24,14 +24,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the Python modules
 COPY ./aitalkmaster-server .
 
-
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash app
 
-RUN chown -R app:app /app
-
 # Create necessary directories and set proper permissions
-RUN mkdir -p generated-audio
+RUN mkdir -p generated-audio && \
+    chown -R app:app /app && \
+    chmod -R 775 generated-audio
+
 USER app
 
 # Expose the port

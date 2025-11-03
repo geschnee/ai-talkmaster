@@ -24,10 +24,30 @@ integer whitelistCurrentLine=0;
 
 integer max_response_length = 16384;
 
-reset_theater_play(string join_key) {
+// Variables to track the single reset request
+key reset_request_id = NULL_KEY;
+key reset_user_key = NULL_KEY;
+
+// Variables to track the single start conversation request
+key start_conversation_request_id = NULL_KEY;
+key start_conversation_user_key = NULL_KEY;
+
+reset_aitalkmaster(string join_key, key user_key) {
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key]);
 
-    llHTTPRequest(ait_endpoint + "/ait/resetJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    reset_request_id = llHTTPRequest(ait_endpoint + "/ait/resetJoinkey", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    
+    // Store the user key for this request
+    reset_user_key = user_key;
+}
+
+start_conversation(string join_key, key user_key) {
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key]);
+
+    start_conversation_request_id = llHTTPRequest(ait_endpoint + "/ait/startConversation", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    
+    // Store the user key for this request
+    start_conversation_user_key = user_key;
 }
 
 default
@@ -65,7 +85,7 @@ default
 
                 join_key = line;
                 llOwnerSay("join_key has been read " + join_key);
-                llOwnerSay("On channel " + command_channel + " you can reset the theater performance/conversation with join_key "+ join_key + " with the following command: resetAIT " +join_key);
+                llOwnerSay("On channel " + command_channel + " you can reset the theater performance/conversation with join_key "+ join_key + " with the following command: ResetAIT " +join_key);
 
                 llListen(command_channel, "","","");
             }
@@ -109,9 +129,13 @@ default
 
         if (channel == command_channel) {
             // Handle both dialog responses and channel commands
-            if (message == "ResetAIT") {
-                llInstantMessage(id, "Conversation " + join_key + " has been reset");
-                reset_theater_play(join_key);
+            if (message == "ResetAIT "+join_key) {
+                llInstantMessage(id, "Resetting conversation " + join_key + "...");
+                reset_aitalkmaster(join_key, id);
+            }
+            else if (message == "StartConversation "+ join_key) {
+                llInstantMessage(id, "Starting conversation " + join_key + "...");
+                start_conversation(join_key, id);
             }
             else if (message == "Status") {
                 llInstantMessage(id, "AIT Controller Status:");
@@ -122,32 +146,66 @@ default
             else if (message == "Close") {
                 llInstantMessage(id, "Dialog closed.");
             }
-            else {
-                // Handle channel commands
-                string respondingTo = "resetAIT " + join_key;
-                if(message==respondingTo) {
-                    llInstantMessage(id, "Conversation " + join_key + " has been reset");
-                    reset_theater_play(join_key);
-                }
-            }
         }
     }
 
     http_response(key request_id, integer status, list metadata, string body)
     {
-        
-        if (status == 200) {
-            string stream_url = llJsonGetValue(body, ["stream_url"]);
-            string defaultModel = llJsonGetValue(body, ["default_model"]);
+        // Check if this is the reset request
+        if (request_id == reset_request_id) {
+            // Found the request - get the associated user key
+            key user_key = reset_user_key;
+            
+            // Clear the tracking variables
+            reset_request_id = NULL_KEY;
+            reset_user_key = NULL_KEY;
+            
+            // Notify the user based on the response status
+            if (status == 200) {
+                llInstantMessage(user_key, "Success: Conversation " + join_key + " has been reset successfully.");
+                llSay(0, "Conversation " + join_key + " has been reset successfully.");
+                
+                string stream_url = llJsonGetValue(body, ["stream_url"]);
 
-            if (stream_url!=""){
-                llSay(0, "Audio Stream is available at: " + stream_url);
+                if (stream_url != "") {
+                    llSay(0, "Audio Stream is available at: " + stream_url);
+                    llInstantMessage(user_key, "Audio Stream is available at: " + stream_url);
+                }
+            } else {
+                llInstantMessage(user_key, "Error: Failed to reset conversation " + join_key + ". Status: " + (string)status + " - " + body);
+                llOwnerSay("Error:" + (string) status + " - " + body);
             }
-    
-        } else {
-            llOwnerSay("Error:" + (string) status + " - " + body);
+            return;
         }
         
+        // Check if this is the start conversation request
+        if (request_id == start_conversation_request_id) {
+            // Found the request - get the associated user key
+            key user_key = start_conversation_user_key;
+            
+            // Clear the tracking variables
+            start_conversation_request_id = NULL_KEY;
+            start_conversation_user_key = NULL_KEY;
+            
+            // Notify the user based on the response status
+            if (status == 200) {
+                string info = llJsonGetValue(body, ["info"]);
+                string stream_url = llJsonGetValue(body, ["stream_url"]);
+                
+                if (info != "") {
+                    llInstantMessage(user_key, "Success: " + info);
+                } else {
+                    llInstantMessage(user_key, "Success: Conversation " + join_key + " has been started successfully.");
+                }
+                
+                if (stream_url != "") {
+                    llInstantMessage(user_key, "Audio Stream is available at: " + stream_url);
+                }
+            } else {
+                llInstantMessage(user_key, "Error: Failed to start conversation " + join_key + ". Status: " + (string)status + " - " + body);
+            }
+            return;
+        }
     }
 
     touch_start(integer total_number)
@@ -177,6 +235,6 @@ showDialog(key user)
 {
     llDialog(user, 
         "AIT Controller for Join Key: " + join_key + "\nChannel: " + (string)command_channel + "\n\nWhat would you like to do?",
-        ["ResetAIT", "ActivateAllCharacters", "DeactivateAllCharacters", "Status", "Close"], 
+        ["ResetAIT " + join_key, "StartConversation "+ join_key, "ActivateAllCharacters", "DeactivateAllCharacters", "Status", "Close"], 
         command_channel);
 }
