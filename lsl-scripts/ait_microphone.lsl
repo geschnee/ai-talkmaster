@@ -1,17 +1,14 @@
-// Speaker Script
+// Microphone Script
 // Two states: active and inactive (default: inactive)
 // Listens on channel 8 (config) and channel 0
 // Only responds to owner's messages
-// When active the speakers messages get forwarded to AI Talkmaster and are voiced for the audio stream.
+// When active the owner's messages on channel 0 get forwarded to AI Talkmaster and are voiced for the audio stream.
 // There is no large language model text response for the sent messages!
 
 // This script is intended to be used on a (HUD) wearable object.
 
 
 integer command_channel = 8;
-
-// State management
-integer isActive = 0; // 0 = inactive, 1 = active
 
 string ait_endpoint = "https://hg.hypergrid.net:6000";
 
@@ -20,7 +17,7 @@ vector inactiveColor = <0.2, 0.2, 0.2>; // Dark gray for inactive
 vector activeColor = <1.0, 1.0, 1.0>;   // Bright white for active
 
 // Property reading variables (similar to theater_actor)
-string parametersNotecardName = "speaker-parameters";
+string parametersNotecardName = "microphone-parameters";
 key parametersNotecardQueryId;
 integer parametersCurrentLine = 0;
 
@@ -154,7 +151,7 @@ default
 {
     state_entry()
     {
-        llOwnerSay("AIT Speaker: Initializing...");
+        llOwnerSay("AIT Microphone: Initializing...");
         state inactive;
     }
 }
@@ -164,12 +161,11 @@ state inactive
 {
     state_entry()
     {
-        llOwnerSay("AIT Speaker: INACTIVE state");
+        llOwnerSay("AIT Microphone: INACTIVE state");
         llOwnerSay("Use channel " + command_channel + " or click the object for changing the state");
         
         // Set visual state to inactive
-        isActive = 0;
-        updateVisualState();
+        updateVisualState(FALSE);
         
         // Initialize property reading
         if (llGetInventoryType(parametersNotecardName) != INVENTORY_NOTECARD)
@@ -201,17 +197,17 @@ state inactive
         
         if (channel == command_channel) {
             // Handle dialog responses
-            if (message == "ActivateSpeaker") {
-                llOwnerSay("Activating AIT Speaker...");
+            if (message == "ActivateMicrophone") {
+                llOwnerSay("Activating AIT Microphone...");
                 // Validate audio parameters before activation
                 if (audio_voice == "" || audio_model == "") {
-                    llOwnerSay("Error: Audio parameters not loaded. Cannot activate speaker.");
+                    llOwnerSay("Error: Audio parameters not loaded. Cannot activate microphone.");
                     return;
                 }
                 validateAudioParameters(audio_voice, audio_model, 1);
             }
             else if (message == "status") {
-                llOwnerSay("AIT Speaker Status: INACTIVE");
+                llOwnerSay("AIT Microphone Status: INACTIVE");
                 llOwnerSay("Properties loaded: " + audio_voice + " | " + audio_model);
             }
             else if (message == "Close") {
@@ -327,14 +323,12 @@ state inactive
                 if (validatingForActivation) {
                     if (voicesValidated) {
                         llOwnerSay("✓ Activation validation successful! Switching to active state.");
-                        isActive = 1; // Set active state
-                        updateVisualState(); // Update visual appearance
                         llListen(0, "","",""); // Start listening on channel 0
                         validatingForActivation = 0;
                         validationInProgress = 0;
                         state active;
                     } else {
-                        llOwnerSay("✗ Activation validation failed. Speaker remains inactive.");
+                        llOwnerSay("✗ Activation validation failed. Microphone remains inactive.");
                         llOwnerSay("Please check your audio configuration and try again.");
                         validatingForActivation = 0;
                         validationInProgress = 0;
@@ -345,7 +339,7 @@ state inactive
                         llOwnerSay("✓ All parameters validated successfully!");
                         start_conversation();
                         // Show dialog after successful validation
-                        showDialog(llGetOwner());
+                        showDialog(llGetOwner(), FALSE);
                     } else {
                         llOwnerSay("✗ Parameter validation failed. Please check your configuration.");
                     }
@@ -354,7 +348,7 @@ state inactive
             } else {
                 llOwnerSay("Error validating audio parameters: HTTP " + (string)status + " - " + body);
                 if (validatingForActivation) {
-                    llOwnerSay("✗ Activation validation failed due to server error. Speaker remains inactive.");
+                    llOwnerSay("✗ Activation validation failed due to server error. Microphone remains inactive.");
                     validatingForActivation = 0;
                 }
                 validationInProgress = 0;
@@ -377,7 +371,7 @@ state inactive
     {
         key toucher = llDetectedKey(0);
         if (toucher == llGetOwner()) {
-            showDialog(toucher);
+            showDialog(toucher, FALSE);
         }
     }
 
@@ -395,13 +389,12 @@ state active
 {
     state_entry()
     {
-        llOwnerSay("AIT Speaker: ACTIVE state");
+        llOwnerSay("AIT Microphone: ACTIVE state");
         llOwnerSay("Will forward your messages on channel 0 to AIT and turn it into voice");
         llOwnerSay("Use channel " + command_channel + " or click the object for changing the state");
         
         // Set visual state to active
-        isActive = 1;
-        updateVisualState();
+        updateVisualState(TRUE);
         
         // Listen on all channels
         llListen(command_channel, "","","");
@@ -417,14 +410,12 @@ state active
         
         if (channel == command_channel) {
             // Handle dialog responses
-            if (message == "DeactivateSpeaker") {
-                llOwnerSay("Deactivating AIT Speaker...");
-                isActive = 0; // Set inactive state
-                updateVisualState(); // Update visual appearance
+            if (message == "DeactivateMicrophone") {
+                llOwnerSay("Deactivating AIT Microphone...");
                 state inactive;
             }
             else if (message == "status") {
-                llOwnerSay("AIT Speaker Status: ACTIVE");
+                llOwnerSay("AIT Microphone Status: ACTIVE");
                 llOwnerSay("Properties: " + audio_voice + " | " + audio_model);
             }
             else if (message == "Close") {
@@ -433,16 +424,10 @@ state active
         }
         else if (channel == 0) {
             // Handle public channel messages when active
-            
-            // Only send to generateAudio when state is active
-            if (isActive == 1) {
-                // Send owner's messages to generateAudio endpoint
-                string username = llParseString2List(name, ["@"], [])[0];
-                username = llStringTrim(username, 3);
-                ait_generateAudio(username, message);
-            } else {
-                llOwnerSay("Speaker is not active, ignoring message");
-            }
+            // Send owner's messages to generateAudio endpoint
+            string username = llParseString2List(name, ["@"], [])[0];
+            username = llStringTrim(username, 3);
+            ait_generateAudio(username, message);
         }
     }
 
@@ -467,7 +452,7 @@ state active
     {
         key toucher = llDetectedKey(0);
         if (toucher == llGetOwner()) {
-            showDialog(toucher);
+            showDialog(toucher, TRUE);
         }
     }
 
@@ -481,9 +466,9 @@ state active
 }
 
 // Function to update visual appearance based on state
-updateVisualState()
+updateVisualState(integer active)
 {
-    if (isActive == 1) {
+    if (active) {
         // Active state - bright and glowing
         llSetColor(activeColor, ALL_SIDES);
         llSetPrimitiveParams([PRIM_FULLBRIGHT, ALL_SIDES, TRUE]);
@@ -495,19 +480,20 @@ updateVisualState()
 }
 
 // Function to show dialog based on current state
-showDialog(key user)
+showDialog(key user, integer isActiveState)
 {
-    if (isActive == 1) {
+    if (isActiveState) {
         // Active state dialog
         llDialog(user, 
-            "AIT Speaker - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\n",
-            ["DeactivateSpeaker", "Close"], 
+            "AIT Microphone - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\n",
+            ["DeactivateMicrophone", "Close"], 
             command_channel);
     } else {
         // Inactive state dialog
         llDialog(user, 
-            "AIT Speaker - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nPress activate to forward your chat messages on channel 0 to AIT audio stream.",
-            ["ActivateSpeaker", "Close"], 
+            "AIT Microphone - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nPress activate to forward your chat messages on channel 0 to AIT audio stream.",
+            ["ActivateMicrophone", "Close"], 
             command_channel);
     }
 }
+

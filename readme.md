@@ -25,7 +25,6 @@ The scripts in [lsl-scripts](./lsl-scripts/) use the Open-Source instance, see a
 # Information for using AI Talkmaster and LSL-Scripts in-world
 
 
-
 How to use the LSL-Scripts in-world:
 1. select a script and place it on an object that you own
    - modify the ait_endpoint variable if you want (to your own AIT server or a [hosted AI Talkmaster](hosted-ai-talkmaster))
@@ -41,14 +40,16 @@ There are a three kinds of interactions with the large language models: Generate
 Generate and Conversation are precursors of the multi-character conversations of AI Talkmaster. Generate replies to each message with a single message without keeping a history or extended context. Conversation allows for a back-and-forth with many consecutive messages that share a history/context.
 The AI Talkmaster conversations go a step further and allow many participants to be a part of the conversation. Furthermore the AI Talkmaster conversations are converted to a live [audio-stream](#audio-stream).
 
-There are example scripts for generating objects that interact with the AI Talkmaster server in the [lsl-scripts directory](./lsl-scripts/).
-The scripts require a few different notecards to be present as parameterization of the scripts. The scripts validate the parameters on reset.
-
 | Conversation Type | Generate | Conversation | AI Talkmaster |
 |----------|------|------------|------|
-| Description | Single response (no history) | Conversation with History | Conversation with history, multiple chracters possible, audio stream available |
+| Description | Single response (no history) | Conversation with History | Conversation with history, multiple characters possible, audio stream available |
 | Script Name | Generate.lsl | Conversation.lsl | ait_character.lsl |
 | Required Notecards | llm-system, llm-parameters | llm-system, llm-parameters | llm-system, llm-parameters, join_key |
+
+There are example scripts that interact with the AI Talkmaster server in the [lsl-scripts directory](./lsl-scripts/). The Generate.lsl, Conversation.lsl and ait_character.lsl scripts are used to define AI characters. The ait_microphone.lsl script adds the owner's messages to the AI Talkmaster conversation's [audio-stream](#audio-stream).
+The scripts require a few different notecards to be present as parameterization of the scripts. The scripts validate the parameters on reset.
+
+
 
 
 ## Notecard details
@@ -67,7 +68,7 @@ This notecard contains all other parameters for the character and parameterizati
 
 An [example notecard](lsl-scripts/llm-parameters.notecard) is located in the lsl-scripts directory. 
 
-The following parameters are only used/required with the AI Talkmaster endpoints when generating an audio stream:
+The following parameters are only used with the AI Talkmaster endpoints when generating an audio stream:
 * audio_model
 * audio_instructions
 * audio_voice
