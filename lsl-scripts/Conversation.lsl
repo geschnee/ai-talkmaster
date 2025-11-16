@@ -268,8 +268,8 @@ set_ready() {
     username="";
     message="";
 
-    // Clear polling indicator
-    llSetText("", ZERO_VECTOR, 0.0);
+    
+    llSetText("Please click on me to start a new session.", <1.0, 1.0, 0.5>, 1.0);
 
     llSay(0, "Please click on me to start a new session.");
     llSay(0, "---");
@@ -295,9 +295,6 @@ default
         optionsList = [];
         parametersNotecardQueryId = llGetNotecardLine(parametersNotecardName, parametersCurrentLine);
         systemNotecardQueryId = llGetNotecardLine(systemNotecardName, systemCurrentLine);
-
-        // Clear any floating text on script start
-        llSetText("", ZERO_VECTOR, 0.0);
 
         set_ready();
     }
@@ -425,7 +422,7 @@ default
             llSay(0, "Hello "+llKey2Name(user)+" I am made to forward your input to " + charactername + ". I can deal only with one user at a time We can have a conversation with many messages."); 
             username = llKey2Name(user);
             
-            
+            llSetText("Waiting for message by " + llKey2Name(user), <1.0, 1.0, 0.5>, 1.0);
             stopwatch = 0;
             message="";
             conversation_key="";
@@ -451,7 +448,7 @@ default
             pollingResponse=1;
             polling_start_time = llGetUnixTime(); // Record when polling started
             // Show polling indicator
-            llSetText("...", <1.0, 1.0, 0.5>, 1.0);
+            llSetText("waiting for response", <1.0, 1.0, 0.5>, 1.0);
             llListenRemove(listener);
             llListenRemove(command_channel);
         }   
@@ -473,6 +470,7 @@ default
                     if (isValueInJsonArray(chatModels, model)) {
                         llOwnerSay("✓ Model '" + model + "' is valid");
                         modelsValidated = 1;
+                        llSetText("Please click on me to start a new session.", <1.0, 1.0, 0.5>, 1.0);
                     } else {
                         llOwnerSay("✗ Model '" + model + "' is NOT valid. Available models: " + chatModels);
                         modelsValidated = 0;
@@ -532,14 +530,16 @@ default
                 llListen(command_channel, "", user, "");
                 conversation_time = conversation_time + CONVERSATION_INCREMENT;
 
-                // Clear polling indicator
-                llSetText("", ZERO_VECTOR, 0.0);
+                
 
                 string response = llJsonGetValue(body, ["response"]);
 
                 llSay(0, username+" that's for you: ");
 
                 printResponse(response);
+
+                
+                llSetText("Continue chatting on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 
                 return;
             } else if (status != 0 && status != 425) {
@@ -550,7 +550,7 @@ default
                     listener = llListen(com_channel, "", user, "");
                     llListen(command_channel, "", user, "");
                     // Clear polling indicator
-                    llSetText("", ZERO_VECTOR, 0.0);
+                    llSetText("Please click on me to start a new session.", <1.0, 1.0, 0.5>, 1.0);
                     llSay(0, "HTTP Error " + (string)status + ": " + body + " - Stopping polling");
                 } else {
                     // Report error but we're not polling
@@ -595,7 +595,7 @@ default
                     llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message");
                     pollingResponse = 0; // Stop polling
                     // Clear polling indicator
-                    llSetText("", ZERO_VECTOR, 0.0);
+                    llSetText("Please click on me to start a new session.", <1.0, 1.0, 0.5>, 1.0);
                     llSay(0, "Sorry, the response took too long. Please try again.");
                     listener = llListen(com_channel, "", user, ""); // Resume listening
                     llListen(command_channel, "", user, "");

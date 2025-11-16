@@ -198,7 +198,7 @@ ait_postMessage(string message_id, string username, string message) {
 ait_getMessageResponse(string message_id) {
     string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "message_id", message_id]);
 
-    key getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
 
 ait_startConversation(){
@@ -218,7 +218,7 @@ transmitMessage(string username, string message){
     llListenRemove(listener_public_channel);
     
     // Show polling indicator
-    llSetText("...", <1.0, 1.0, 0.5>, 1.0);
+    llSetText("waiting for response", <1.0, 1.0, 0.5>, 1.0);
 
     ait_postMessage(pollingMessageId, username, message);
 }
@@ -258,10 +258,11 @@ validateAllParameters()
     }
     llOwnerSay("Starting parameter validation...");
     
-    
     validateModel(model);
     
     validateAudioParameters(audio_voice, audio_model);
+
+    llSetText("currently validating parameters", <1.0, 1.0, 0.5>, 1.0);
 }
 
 // Function to truncate command for dialog (max 24 characters)
@@ -449,7 +450,6 @@ default
 
     listen(integer channel, string name, key id, string message)
     {
-        llOwnerSay("heard: " + message + " on channel " + (string) channel);
         if(channel == 0) {
             if (isActive==0){
                 return;
@@ -489,19 +489,22 @@ default
             if (message == ActivateAllCharactersCommand){
                 llOwnerSay(charactername + " has been activated using ActivateAllCharacters command");
                 listener_public_channel = llListen(0, "","","");
+                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 isActive = 1;
             }
             string DeactivateAllCharactersCommand = "DeactivateAllCharacters";
             if (message == DeactivateAllCharactersCommand){
                 llOwnerSay(charactername + " has been deactivated using DeactivateAllCharacters command");
+                llListenRemove(listener_public_channel);
+                llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
                 isActive = 0;
             }
             string activateAgentCommand = "Activate " + charactername;
             string activateAgentCommandShort = truncateDialogCommand("Activate ", charactername);
-            llSay(0, "activate command: " + activateAgentCommand);
-            llSay(0, "activate command short: " + activateAgentCommandShort);
+            
             if (message == activateAgentCommand || message == activateAgentCommandShort){
                 listener_public_channel = llListen(0, "","","");
+                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 llOwnerSay(charactername + " has been activated");
                 isActive = 1;
             }
@@ -509,6 +512,8 @@ default
             string deactivateAgentCommandShort = truncateDialogCommand("Deactivate ", charactername);
             if (message == deactivateAgentCommand || message == deactivateAgentCommandShort){
                 llOwnerSay(charactername + " has been deactivated");
+                llListenRemove(listener_public_channel);
+                llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
                 isActive = 0;
             }
             string spotlightActivateCommand = "Spotlight " + charactername;
@@ -516,11 +521,14 @@ default
             if (message == spotlightActivateCommand || message == spotlightActivateCommandShort){
                 llOwnerSay(charactername + " has been activated by spotlight command");
                 listener_public_channel = llListen(0, "","","");
+                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 isActive = 1;
             } else {
                 string commandName = llParseString2List(message, [" "], [])[0];
                 if (commandName == "Spotlight") {
                     llOwnerSay(charactername + " has been deactivated by spotlight command");
+                    llListenRemove(listener_public_channel);
+                    llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
                     isActive = 0;
                 }
             }
@@ -559,6 +567,7 @@ default
                 if (modelsValidated && audioIsValidated) {
                     fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
+                    llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
                     llListen(command_channel, "","","");
                     ait_startConversation();
                     printInfo();
@@ -617,6 +626,7 @@ default
                 if (modelsValidated && audioIsValidated) {
                     fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
+                    llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
                     llListen(command_channel, "","","");
                     ait_startConversation();
                     printInfo();
@@ -651,8 +661,8 @@ default
                 pollingForResponse=0;
                 listener_public_channel = llListen(0, "", "", "");
                 
-                // Clear polling indicator
-                llSetText("", ZERO_VECTOR, 0.0);
+                // Show listening indicator
+                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
 
                 string response = llJsonGetValue(body, ["response"]);
                 
@@ -664,8 +674,8 @@ default
                 if (pollingForResponse == 1) {
                     pollingForResponse = 0;
                     listener_public_channel = llListen(0, "", "", "");
-                    // Clear polling indicator
-                    llSetText("", ZERO_VECTOR, 0.0);
+                    // Show listening indicator
+                    llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                     llSay(0, "HTTP Error " + (string)status + ": " + body + " - Stopping polling");
                 }
                 return;
@@ -687,8 +697,8 @@ default
             pollingForResponse = 0;
             listener_public_channel = llListen(0, "", "", "");
             
-            // Clear polling indicator
-            llSetText("", ZERO_VECTOR, 0.0);
+            // Show listening indicator
+            llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
         }
     }
 
@@ -703,8 +713,8 @@ default
                 // Resume listening to public channel
                 listener_public_channel = llListen(0, "", "", "");
                 
-                // Clear polling indicator
-                llSetText("", ZERO_VECTOR, 0.0);
+                // Show listening indicator
+                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 return;
             }
             ait_getMessageResponse(pollingMessageId);

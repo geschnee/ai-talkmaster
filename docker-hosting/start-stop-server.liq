@@ -69,7 +69,7 @@ def create_stream(join_key) =
     outfile = output.file(
       id="fileoutput-#{count()}",
       %mp3(bitrate = 32, samplerate = 22050, stereo = false),
-      "fileoutput-test.mp3",
+      "fileoutput-#{join_key}.mp3",
       mean(stream_content)
     )
     count := count() + 1

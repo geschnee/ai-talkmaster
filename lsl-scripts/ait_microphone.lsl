@@ -485,13 +485,13 @@ showDialog(key user, integer isActiveState)
     if (isActiveState) {
         // Active state dialog
         llDialog(user, 
-            "AIT Microphone - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\n",
+            "AIT Microphone - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\ncurrently polling",
             ["DeactivateMicrophone", "Close"], 
             command_channel);
     } else {
         // Inactive state dialog
         llDialog(user, 
-            "AIT Microphone - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nPress activate to forward your chat messages on channel 0 to AIT audio stream.",
+            "AIT Microphone - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nclick to start interacting",
             ["ActivateMicrophone", "Close"], 
             command_channel);
     }
