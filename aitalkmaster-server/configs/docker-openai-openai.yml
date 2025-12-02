@@ -28,13 +28,13 @@ audio_client:
 
 liquidsoap_client:
   host: "liquidsoap"
-  telnet_port: 1234
+  http_port: 8080
 
 icecast_client:
   host: "icecast"
   port: 8000
   admin_password: "password"
-  stream_endpoint_prefix: "http://hg.hypergrid.net:7000/ait/stream/" # This variable will only be shown in the /ait/startConversation response to inform the user where to listen to for audio. Remove this variable when not using audio.
+  stream_endpoint_prefix: "http://localhost:7000/ait/stream/" # This variable will only be shown in the /ait/startConversation response to inform the user where to listen to for audio. Remove this variable when not using audio.
 
 
 # Aitalkmaster Configuration

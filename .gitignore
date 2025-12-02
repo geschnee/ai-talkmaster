@@ -23,6 +23,7 @@ volumes_openai/*
 
 
 *.mp3
+*.docx
 
 notes.md
 

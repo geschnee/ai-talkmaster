@@ -12,14 +12,11 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-
-
 # Copy requirements first for better caching
 COPY ./aitalkmaster-server/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
 
 # Copy the Python modules
 COPY ./aitalkmaster-server .
@@ -32,6 +29,10 @@ RUN mkdir -p generated-audio && \
     chown -R app:app /app && \
     chmod -R 775 generated-audio
 
+RUN mkdir -p logs && \
+    chown -R app:app logs && \
+    chmod -R 775 logs
+
 USER app
 
 # Expose the port
@@ -43,4 +44,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run the application
 CMD ["python", "ai_talkmaster.py"]
-#CMD ["ls", "-la"]

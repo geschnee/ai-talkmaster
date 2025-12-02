@@ -13,7 +13,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - generated_audio_openai:/app/generated-audio
-      - ../volumes/aitalkmaster-logs:/app/logs
+      - aitalkmaster_logs_openai:/app/logs
       - ../openai_key.txt:/app/openai_key.txt:ro
       - ../aitalkmaster-server/configs/docker-openai-openai.yml:/app/config.yml:ro
     environment:
@@ -32,7 +32,7 @@ services:
       dockerfile: liquidsoap.Dockerfile
     restart: unless-stopped
     volumes:
-      - ../volumes/liquidsoap-logs:/var/log/liquidsoap
+      - liquidsoap_logs_openai:/var/log/liquidsoap
       - generated_audio_openai:/generated-audio:ro
     environment:
       - LIQUIDSOAP_LOG_LEVEL=3
@@ -48,7 +48,6 @@ services:
       context: ../
       dockerfile: docker-hosting/icecast.Dockerfile
     restart: unless-stopped
-    # Remove external port exposure - only accessible via nginx proxy
     expose:
       - "8000"
     environment:
@@ -58,7 +57,7 @@ services:
       - ICECAST_PASSWORD=password
       - ICECAST_HOSTNAME=localhost
     volumes:
-      - ../volumes/icecast-logs:/var/log/icecast2
+      - icecast_logs_openai:/var/log/icecast2
     networks:
       - streaming-network
 
@@ -71,9 +70,8 @@ services:
       - "7000:80"  # External port
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../volumes/nginx-logs:/var/log/nginx
+      - nginx_logs_openai:/var/log/nginx
       - generated_audio_openai:/generated-audio:ro # nginx needs this to check if the stream is active
-      - ./test.txt:/usr/share/nginx/html/test.txt:ro
     depends_on:
       - aitalkmaster
       - icecast
@@ -93,3 +91,11 @@ networks:
 volumes:
   generated_audio_openai:
     name: hosting_generated_audio_openai
+  aitalkmaster_logs_openai:
+    name: hosting_aitalkmaster_logs_openai
+  liquidsoap_logs_openai:
+    name: hosting_liquidsoap_logs_openai
+  icecast_logs_openai:
+    name: hosting_icecast_logs_openai
+  nginx_logs_openai:
+    name: hosting_nginx_logs_openai

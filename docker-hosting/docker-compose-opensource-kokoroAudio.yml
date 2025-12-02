@@ -4,7 +4,7 @@ services:
       context: ../
       dockerfile: docker-hosting/aitalkmaster.Dockerfile
     container_name: aitalkmaster
-    # Remove external port exposure - only accessible via nginx proxy
+    # Remove external port exposure - only accessible via nginx
     expose:
       - "6000"
     networks:
@@ -13,7 +13,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - generated_audio_opensource:/app/generated-audio
-      - ../volumes/aitalkmaster-logs:/app/logs
+      - aitalkmaster_logs_opensource:/app/logs
       - ../openai_key.txt:/app/openai_key.txt:ro
       - ../aitalkmaster-server/configs/docker-ollama-kokoro.yml:/app/config.yml:ro
     environment:
@@ -31,8 +31,10 @@ services:
       context: ./
       dockerfile: liquidsoap.Dockerfile
     restart: unless-stopped
+    expose:
+      - "8080"
     volumes:
-      - ../volumes/liquidsoap-logs:/var/log/liquidsoap
+      - liquidsoap_logs_opensource:/var/log/liquidsoap
       - generated_audio_opensource:/generated-audio:ro
     environment:
       - LIQUIDSOAP_LOG_LEVEL=3
@@ -41,14 +43,11 @@ services:
     networks:
       - streaming-network
 
-    # icecast configs lie in /etc/icecast2/icecast.xml
   icecast:
-    #image: moul/icecast:latest
     build:
       context: ../
       dockerfile: docker-hosting/icecast.Dockerfile
     restart: unless-stopped
-    # Remove external port exposure - only accessible via nginx proxy
     expose:
       - "8000" 
     environment:
@@ -58,7 +57,7 @@ services:
       - ICECAST_PASSWORD=password
       - ICECAST_HOSTNAME=localhost
     volumes:
-      - ../volumes/icecast-logs:/var/log/icecast2
+      - icecast_logs_opensource:/var/log/icecast2
     networks:
       - streaming-network
 
@@ -68,10 +67,10 @@ services:
     container_name: aitalkmaster-nginx
     restart: unless-stopped
     ports:
-      - "6000:80"  # External port
+      - "6000:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../volumes/nginx-logs:/var/log/nginx
+      - nginx_logs_opensource:/var/log/nginx
       - generated_audio_opensource:/generated-audio:ro # nginx needs this to check if the stream is active
     depends_on:
       - aitalkmaster
@@ -92,3 +91,11 @@ networks:
 volumes:
   generated_audio_opensource:
     name: hosting_generated_audio_opensource
+  aitalkmaster_logs_opensource:
+    name: hosting_aitalkmaster_logs_opensource
+  liquidsoap_logs_opensource:
+    name: hosting_liquidsoap_logs_opensource
+  icecast_logs_opensource:
+    name: hosting_icecast_logs_opensource
+  nginx_logs_opensource:
+    name: hosting_nginx_logs_opensource

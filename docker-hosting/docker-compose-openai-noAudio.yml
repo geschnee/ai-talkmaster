@@ -11,8 +11,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ../volumes/generated-audio:/app/generated-audio
-      - ../volumes/aitalkmaster-logs:/app/logs
+      - aitalkmaster_logs_openai_noaudio:/app/logs
       - ../openai_key.txt:/app/openai_key.txt:ro
       - ../aitalkmaster-server/configs/docker-openai-noAudio.yml:/app/config.yml:ro
     environment:
@@ -29,3 +28,7 @@ services:
 networks:
   streaming-network:
     driver: bridge
+
+volumes:
+  aitalkmaster_logs_openai_noaudio:
+    name: hosting_aitalkmaster_logs_openai_noaudio

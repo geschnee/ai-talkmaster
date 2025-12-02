@@ -43,8 +43,6 @@ class ServerConfig:
     log_file: str = "logfile.txt"
     llm_log_file: str = "llm_logfile.txt"
     usage: UsageConfig = None
-    
-
 
 @dataclass
 class ChatClientConfig:
@@ -68,7 +66,7 @@ class AudioClientConfig:
 class LiquidsoapClientConfig:
     """Liquidsoap client configuration"""
     host: str = "localhost"
-    telnet_port: int = 1234
+    http_port: int = 8080
 
 @dataclass
 class IcecastClientConfig:
@@ -79,12 +77,10 @@ class IcecastClientConfig:
     admin_password: str = "password"
     stream_endpoint_prefix: str = ""
 
-
 @dataclass
 class AitalkmasterConfig:
     """AI Talkmaster configuration"""
     join_key_keep_alive_list: list = Field(default_factory=list)
-
 
 class Config:
     """
@@ -196,8 +192,8 @@ class Config:
         liquidsoap_client_data = self.config_data.get('liquidsoap_client')
         if liquidsoap_client_data:
             self.liquidsoap_client = LiquidsoapClientConfig(
-                host=liquidsoap_client_data.get('host'),
-                telnet_port=liquidsoap_client_data.get('telnet_port'),
+                host=liquidsoap_client_data.get('host', 'localhost'),
+                http_port=liquidsoap_client_data.get('http_port', 8080),
             )
         else:
             self.liquidsoap_client = None
@@ -340,7 +336,7 @@ class Config:
             } if self.audio_client else None,
             'liquidsoap_client': {
                 'host': self.liquidsoap_client.host,
-                'telnet_port': self.liquidsoap_client.telnet_port,
+                'http_port': self.liquidsoap_client.http_port,
             } if self.liquidsoap_client else None,
             'icecast_client': {
                 'host': self.icecast_client.host,
@@ -803,7 +799,6 @@ class Config:
         self._load_config()
         self._setup_config_objects()
 
-
 # Global configuration instance
 config = Config()
 
@@ -815,7 +810,6 @@ def get_config() -> Config:
         Config instance
     """
     return config
-
 
 def reload_config():
     """Reload the global configuration"""

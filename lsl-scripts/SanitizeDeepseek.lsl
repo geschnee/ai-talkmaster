@@ -1,5 +1,5 @@
 // this script only contains a single function that can be used to sanitize a response from the AI Talkmaster server.
-// The Ollama deeoseek-r1 model returns a response with a </think> block. This function removes the </think> block from the response.
+// The Ollama deeoseek-r1 model returns a response starting with a <think>...</think> block. This function removes the <think>...</think> block from the response.
 
 string removeThinkBlock(string message)
 {

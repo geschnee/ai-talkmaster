@@ -1,5 +1,3 @@
-# OllamaProxy Configuration File for Docker
-
 # Server Configuration
 server:
   host: "0.0.0.0"

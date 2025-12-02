@@ -2,7 +2,6 @@ from fastapi.responses import JSONResponse
 from fastapi import Request
 import time
 from pathlib import Path
-import uuid
 import shutil
 from datetime import datetime
 from mutagen.easyid3 import EasyID3
@@ -10,9 +9,9 @@ from mutagen.easyid3 import EasyID3
 import traceback
 
 from code.config import ChatClientMode, AudioClientMode
-from code.aitalkmaster_utils import AitalkmasterInstance, remove_name, start_liquidsoap
+from code.aitalkmaster_utils import AitalkmasterInstance, remove_name, start_liquidsoap, queue_audio
 from code.request_models import AitPostMessageRequest, AitMessageResponseRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest, AitStartConversationRequest
-from code.validation_decorators import validate_chat_model_decorator, validate_audio_decorator, rate_limit_decorator
+from code.validation_decorators import validate_chat_model_decorator, validate_audio_decorator, rate_limit_decorator, validate_join_key_decorator
 from code.shared import app, config, log, llm_log
 from pydub import AudioSegment
 from code.openai_response import CharacterResponse
@@ -61,7 +60,7 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
     increment_resource_usage(ip_address, duration_seconds * config.server.usage.audio_cost_per_second)
 
     output_path = filename
-    audio.export(output_path, format="mp3", bitrate="192k")
+    audio.export(output_path, format="mp3", codec="libmp3lame", bitrate="128k")
 
 
 def save_metadata(filename: str, name: str, join_key: str):
@@ -212,8 +211,10 @@ def build_filename(request: AitPostMessageRequest, ait_instance: AitalkmasterIns
     
     sequence_str = ait_instance.generate_sequence_str()
     
-    fn = f'./generated-audio/active/{request.join_key}/{sequence_str}_{request.charactername}_{request.message_id}_{request.audio_voice}_{uuid.uuid4()}.mp3' # we need a random component here (uuid) since the liquidsoap uses the filenames to check if the file was already played
-    return fn
+    filename = f'{sequence_str}_{request.charactername}_{request.message_id}_{request.audio_voice}.mp3'
+
+    full_name = f'./generated-audio/active/{request.join_key}/{filename}'
+    return full_name, filename
 
 
 def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
@@ -229,6 +230,7 @@ def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
 
 
 @app.post("/ait/postMessage")
+@validate_join_key_decorator
 @validate_chat_model_decorator
 @validate_audio_decorator
 @rate_limit_decorator
@@ -266,15 +268,17 @@ def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Reques
             )
 
         if config.audio_client is not None:
-            filename = build_filename(request_model, ait_instance)
+            full_name, filename = build_filename(request_model, ait_instance)
         else:
+            full_name = None
             filename = None
 
         ait_instance.addResponse(response_msg, request_model.charactername, response_id=request_model.message_id, filename=filename)
 
         if config.audio_client is not None:
-            save_audio(filename, response_msg, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", fastapi_request)
-            save_metadata(filename, request_model.charactername, join_key)
+            save_audio(full_name, response_msg, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", fastapi_request)
+            save_metadata(full_name, request_model.charactername, join_key)
+            queue_audio(join_key, filename)
         
             ait_instance.set_audio_created_at(request_model.message_id, time.time())
         
@@ -298,6 +302,7 @@ def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Reques
 
 @app.get("/ait/getMessageResponse")
 @rate_limit_decorator
+@validate_join_key_decorator
 def getaitMessageResponse(request_model: AitMessageResponseRequest, fastapi_request: Request):
     try:
         join_key = request_model.join_key
@@ -358,6 +363,7 @@ def reset_aitalkmaster(join_key: str):
 
 @app.post("/ait/resetJoinkey")
 @rate_limit_decorator
+@validate_join_key_decorator
 def resetJoinkey(request_model: AitResetJoinkeyRequest, fastapi_request: Request):
     try:
         join_key = request_model.join_key
@@ -393,6 +399,7 @@ def resetJoinkey(request_model: AitResetJoinkeyRequest, fastapi_request: Request
         )
 
 @app.post("/ait/startConversation")
+@validate_join_key_decorator
 def startStream(request_model: AitStartConversationRequest, fastapi_request: Request):
     try:
         join_key = request_model.join_key
@@ -441,6 +448,7 @@ def startStream(request_model: AitStartConversationRequest, fastapi_request: Req
 @app.post("/ait/generateAudio")
 @validate_audio_decorator
 @rate_limit_decorator
+@validate_join_key_decorator
 def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Request):
     try:
 
@@ -463,11 +471,14 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
         sequence_str = ait_instance.generate_sequence_str()
         
         # Generate filename with sequence number
-        filename = f'./generated-audio/active/{request_model.join_key}/{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}_{uuid.uuid4()}.mp3'
+        filename = f'{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}.mp3'
+        full_name = f'./generated-audio/active/{request_model.join_key}/{filename}'
         
-        save_audio(filename, request_model.message, request_model.audio_voice, request_model.audio_model, request_model.audio_instructions, fastapi_request)
+        save_audio(full_name, request_model.message, request_model.audio_voice, request_model.audio_model, request_model.audio_instructions, fastapi_request)
 
         save_metadata(filename, request_model.username, join_key)
+
+        queue_audio(join_key, filename)
         
         log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio: message: {request_model.message} -> {filename}')
         

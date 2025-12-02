@@ -4,7 +4,7 @@ from pathlib import Path
 from mutagen.mp3 import MP3
 import time
 from dataclasses import dataclass
-import socket
+import requests
 from code.shared import config, log
 
 def time_str():
@@ -149,47 +149,59 @@ def remove_name(message: str, charactername: str):
         message = message[len(charactername)+1:]
     return message
 
-def send_telnet_command(command: str) -> bool:
+def send_http_command(endpoint: str, data: dict) -> bool:
+    """Send an HTTP POST request to the liquidsoap server"""
     if config.liquidsoap_client == None:
-        log(f"[-] No liquidsoap client config found, canceling telnet command '{command}'")
+        log(f"[-] No liquidsoap client config found, canceling HTTP request to '{endpoint}'")
         return False
 
-    """Send a telnet command to the liquidsoap server"""
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(5)  # 5 second timeout
-            sock.connect((config.liquidsoap_client.host, config.liquidsoap_client.telnet_port))
-            
-            sock.send(f"{command}\n".encode('utf-8'))
-            
-            response = sock.recv(1024).decode('utf-8', errors='ignore')
-            log(f"[*] Telnet command '{command}' sent, response: {response.strip()}")
+        url = f"http://{config.liquidsoap_client.host}:{config.liquidsoap_client.http_port}{endpoint}"
+        response = requests.post(
+            url,
+            data=data,
+            timeout=5,
+            headers={'Content-Type': 'text/plain'}
+        )
+        
+        if response.status_code == 200:
+            log(f"[*] HTTP request to '{endpoint}' successful, response: {response.text.strip()}")
             return True
+        else:
+            log(f"[-] HTTP request to '{endpoint}' failed with status {response.status_code}: {response.text.strip()}")
+            return False
             
-    except socket.timeout:
-        log(f"[-] Telnet command '{command}' timed out")
+    except requests.exceptions.Timeout:
+        log(f"[-] HTTP request to '{endpoint}' timed out")
         return False
-    except ConnectionRefusedError:
-        log(f"[-] Cannot connect to liquidsoap telnet server at {config.liquidsoap_client.host}:{config.liquidsoap_client.telnet_port}")
+    except requests.exceptions.ConnectionError:
+        log(f"[-] Cannot connect to liquidsoap HTTP server at {config.liquidsoap_client.host}:{config.liquidsoap_client.http_port}")
         return False
     except Exception as e:
-        log(f"[-] Error sending telnet command '{command}': {e}")
+        log(f"[-] Error sending HTTP request to '{endpoint}': {e}")
         return False
 
 def start_liquidsoap(stream_name: str) -> bool:
-    """Start a liquidsoap stream via telnet command"""
+    """Start a liquidsoap stream via HTTP request"""
     
     log(f"[+] Starting liquidsoap stream for '{stream_name}'")
-    command = f"aitstream.start {stream_name}"
-    success = send_telnet_command(command)
+    data = f"{stream_name}"
+    success = send_http_command("/start_stream", data)
     
     return success
 
+def queue_audio(stream_name: str, filename: str) -> bool:
+    """Queue an audio file for a specific liquidsoap stream via HTTP request"""
+    log(f"[+] Queuing audio file '{filename}' for '{stream_name}'")
+    data = f"{stream_name} {filename}"
+    success = send_http_command("/queue_audio", data)
+    return success
+
 def stop_liquidsoap(stream_name: str) -> bool:
-    """Stop a specific liquidsoap stream via telnet command"""
+    """Stop a specific liquidsoap stream via HTTP request"""
     
     log(f"[-] Stopping liquidsoap stream for '{stream_name}'")
-    command = f"aitstream.stop {stream_name}"
-    success = send_telnet_command(command)
+    data = f"{stream_name}"
+    success = send_http_command("/stop_stream", data)
     
     return success
