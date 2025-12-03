@@ -136,12 +136,12 @@ printResponse(string response) {
     }
     
     // Print all chunks with numbering
-    integer i;
-    for (i = 0; i < llGetListLength(chunks); ++i)
+    integer j;
+    for (j = 0; j < llGetListLength(chunks); ++j)
     {
-        string chunk = llList2String(chunks, i);
-        integer i_plus = i + 1;
-        llSay(0, i_plus + " " + chunk);
+        string chunk = llList2String(chunks, j);
+        integer j_plus = j + 1;
+        llSay(0, j_plus + " " + chunk);
     }
 }
 
@@ -208,11 +208,10 @@ generate_getMessageResponse(string input_message) {
         llSay(0, "Model validation is still in progress. Please wait...");
         return;
     }
-    
-    string jsonBody = llList2Json(JSON_OBJECT, ["message_id", (string)message_id]);
 
+    string uriParams = "?message_id=" + (string) message_id;
     
-    getMessageResponseId = llHTTPRequest(ait_endpoint + "/generate/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    getMessageResponseId = llHTTPRequest(ait_endpoint + "/generate/getMessageResponse" + uriParams, [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "");
 }
 
 set_ready() {
@@ -290,7 +289,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 list splits = llParseString2List(line, [":"],[]);
                 
@@ -343,7 +342,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 // Add this line to our collection
                 systemNotecardLines += line;
@@ -464,8 +463,8 @@ default
                 set_ready();
                 
                 return;
-            } else if (status != 0 && status != 425) {
-                // Stop polling on any error status (not 0, not 200, not 425)
+            } else if (status != 0 && status != 425 && status != 499) {
+                // Stop polling on any error status (not 0, not 200, not 425, not 499)
                 if (input_message != "") {
                     // Clear polling indicator
                     llSetText("Please click on me to start a new session.", <1.0, 1.0, 0.5>, 1.0);
@@ -484,6 +483,9 @@ default
             return;
         } else if (0 == status) {
             // request Timeout in OpenSimulator: returns code 0 after 30 seconds
+            return;
+        } else if (499 == status) {
+            // ignore 499 client timeouts, they occur frequently on OpenSimulator Community Conference grid
             return;
         } else if (200 == status) {
             // missed 200 (ID changed)

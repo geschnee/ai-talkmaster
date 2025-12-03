@@ -10,7 +10,7 @@ import traceback
 
 from code.config import ChatClientMode, AudioClientMode
 from code.aitalkmaster_utils import AitalkmasterInstance, remove_name, start_liquidsoap, queue_audio
-from code.request_models import AitPostMessageRequest, AitMessageResponseRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest, AitStartConversationRequest
+from code.request_models import AitPostMessageRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest, AitStartConversationRequest
 from code.validation_decorators import validate_chat_model_decorator, validate_audio_decorator, rate_limit_decorator, validate_join_key_decorator
 from code.shared import app, config, log, llm_log
 from pydub import AudioSegment
@@ -301,12 +301,16 @@ def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Reques
         )
 
 @app.get("/ait/getMessageResponse")
-@rate_limit_decorator
-@validate_join_key_decorator
-def getaitMessageResponse(request_model: AitMessageResponseRequest, fastapi_request: Request):
-    try:
-        join_key = request_model.join_key
+def getaitMessageResponse(join_key: str, message_id: str):
+    if " " in join_key:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": f'Invalid join key "{join_key}", it contains spaces',
+            }
+        )
 
+    try:
         if join_key in active_aitalkmaster_instances.keys():
             ait_instance = active_aitalkmaster_instances[join_key]
         else:
@@ -314,8 +318,6 @@ def getaitMessageResponse(request_model: AitMessageResponseRequest, fastapi_requ
                 status_code=400,
                 content=f"There was no conversation with the join_key: {join_key}"
             )
-
-        message_id = request_model.message_id
         
         for assistant_resp in ait_instance.assistant_responses:
             if assistant_resp.response_id == message_id:
@@ -476,7 +478,7 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
         
         save_audio(full_name, request_model.message, request_model.audio_voice, request_model.audio_model, request_model.audio_instructions, fastapi_request)
 
-        save_metadata(filename, request_model.username, join_key)
+        save_metadata(full_name, request_model.username, join_key)
 
         queue_audio(join_key, filename)
         

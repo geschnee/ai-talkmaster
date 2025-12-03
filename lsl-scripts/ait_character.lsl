@@ -150,12 +150,12 @@ printResponse(string response) {
     }
     
     // Print all chunks with numbering
-    integer i;
-    for (i = 0; i < llGetListLength(chunks); ++i)
+    integer j;
+    for (j = 0; j < llGetListLength(chunks); ++j)
     {
-        string chunk = llList2String(chunks, i);
-        integer i_plus = i + 1;
-        llSay(0, i_plus + " " + chunk);
+        string chunk = llList2String(chunks, j);
+        integer j_plus = j + 1;
+        llSay(0, j_plus + " " + chunk);
     }
 }
 
@@ -196,9 +196,9 @@ ait_postMessage(string message_id, string username, string message) {
 }
 
 ait_getMessageResponse(string message_id) {
-    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "message_id", message_id]);
+    string uriParams = "?join_key=" + join_key + "&message_id=" + message_id;
 
-    getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse" + uriParams, [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "");
 }
 
 ait_startConversation(){
@@ -282,6 +282,22 @@ printInfo(){
     llOwnerSay("on channel " + command_channel + " to activate all characters, type the following: ActivateAllCharacters");
 }
 
+// Function to show dialog interface
+showDialog(key user)
+{
+    string status_text="Inactive";
+    if (isActive==1){
+        status_text = "Active";
+    }
+    string activateCmd = truncateDialogCommand("Activate ", charactername);
+    string deactivateCmd = truncateDialogCommand("Deactivate ", charactername);
+    string spotlightCmd = truncateDialogCommand("Spotlight ", charactername);
+    llDialog(user, 
+        "AIT Character: " + charactername + "\nJoin Key: " + join_key + "\nStatus: " + status_text + "\n\nWhat would you like to do?",
+        [activateCmd, deactivateCmd, spotlightCmd, "Close"], 
+        command_channel);
+}
+
 default
 {
     state_entry()
@@ -332,7 +348,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 list splits = llParseString2List(line, [":"],[]);
                 
@@ -399,7 +415,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 // Add this line to our collection
                 systemNotecardLines += line;
@@ -429,7 +445,7 @@ default
         {
             if (data != EOF)
             {
-                string line = [data];
+                string line = data;
 
                 join_key = line;
 
@@ -464,7 +480,9 @@ default
                 return;
             }
 
-            string username = llParseString2List(name, ["@"], [])[0];
+            list parts = llParseString2List(name, ["@"], []);
+            string username = llList2String(parts, 0);
+            
             username = llStringTrim(username, 3);
 
             transmitMessage(username, message);
@@ -524,7 +542,9 @@ default
                 llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 isActive = 1;
             } else {
-                string commandName = llParseString2List(message, [" "], [])[0];
+                list commandParts = llParseString2List(message, [" "], []);
+                string commandName = llList2String(commandParts, 0);
+
                 if (commandName == "Spotlight") {
                     llOwnerSay(charactername + " has been deactivated by spotlight command");
                     llListenRemove(listener_public_channel);
@@ -615,7 +635,12 @@ default
                         audioModelValid = 1;
                     }
                     
-                    audioIsValidated = (voiceValid && audioModelValid) ? 1 : 0;
+                    if (voiceValid && audioModelValid) {
+                        audioIsValidated=1;
+                    } else {
+                        audioIsValidated=0;
+                    }
+                    
                 } else {
                     llOwnerSay("This AIT server is not configured for audio use");
                     audioIsValidated = 1;
@@ -669,8 +694,8 @@ default
                 printResponse(response);
 
                 return;
-            } else if (status != 0 && status != 425) {
-                // Stop polling on any error status (not 0, not 200, not 425)
+            } else if (status != 0 && status != 425 && status !=499) {
+                // Stop polling on any error status (not 0, not 200, not 425, not 499)
                 if (pollingForResponse == 1) {
                     pollingForResponse = 0;
                     listener_public_channel = llListen(0, "", "", "");
@@ -687,6 +712,9 @@ default
             return;
         } else if (0 == status) {
             // request Timeout in OpenSimulator: returns code 0 after 30 seconds
+            return;
+        } else if (499 == status) {
+            // ignore 499 client timeouts, they occur frequently on OpenSimulator Community Conference grid
             return;
         } else if (200 == status) {
             // missed 200 (ID changed)
@@ -730,15 +758,3 @@ default
     }
 }
 
-// Function to show dialog interface
-showDialog(key user)
-{
-    string status_text = (isActive == 1) ? "Active" : "Inactive";
-    string activateCmd = truncateDialogCommand("Activate ", charactername);
-    string deactivateCmd = truncateDialogCommand("Deactivate ", charactername);
-    string spotlightCmd = truncateDialogCommand("Spotlight ", charactername);
-    llDialog(user, 
-        "AIT Character: " + charactername + "\nJoin Key: " + join_key + "\nStatus: " + status_text + "\n\nWhat would you like to do?",
-        [activateCmd, deactivateCmd, spotlightCmd, "Close"], 
-        command_channel);
-}

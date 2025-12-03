@@ -146,6 +146,38 @@ validateAllParameters()
     validateAudioParameters(audio_voice, audio_model, 0);
 }
 
+// Function to update visual appearance based on state
+updateVisualState(integer active)
+{
+    if (active) {
+        // Active state - bright and glowing
+        llSetColor(activeColor, ALL_SIDES);
+        llSetPrimitiveParams([PRIM_FULLBRIGHT, ALL_SIDES, TRUE]);
+    } else {
+        // Inactive state - dark and dim
+        llSetColor(inactiveColor, ALL_SIDES);
+        llSetPrimitiveParams([PRIM_FULLBRIGHT, ALL_SIDES, FALSE]);
+    }
+}
+
+// Function to show dialog based on current state
+showDialog(key user, integer isActiveState)
+{
+    if (isActiveState) {
+        // Active state dialog
+        llDialog(user, 
+            "AIT Microphone - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\ncurrently polling",
+            ["DeactivateMicrophone", "Close"], 
+            command_channel);
+    } else {
+        // Inactive state dialog
+        llDialog(user, 
+            "AIT Microphone - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nclick to start interacting",
+            ["ActivateMicrophone", "Close"], 
+            command_channel);
+    }
+}
+
 // Default state - automatically switch to inactive
 default
 {
@@ -222,7 +254,7 @@ state inactive
         {
             if (data != EOF)
             {
-                string line = [data];
+                string line = data;
                 list splits = llParseString2List(line, [":"],[]);
                 
                 if ( llGetListLength(splits) == 2 ) 
@@ -279,7 +311,7 @@ state inactive
         {
             if (data != EOF)
             {
-                string line = [data];
+                string line = data;
                 join_key = line;
                 llOwnerSay("join_key has been read " + join_key);
                 
@@ -317,7 +349,11 @@ state inactive
                     llOwnerSay("✗ Audio model '" + audio_model + "' is NOT valid. Available audio models: " + audioModels);
                 }
                 
-                voicesValidated = (voiceValid && audioModelValid) ? 1 : 0;
+                if (voiceValid && audioModelValid) {
+                    voicesValidated=1;
+                } else {
+                    voicesValidated=0;
+                }
                 
                 // Check if this is activation validation
                 if (validatingForActivation) {
@@ -425,8 +461,9 @@ state active
         else if (channel == 0) {
             // Handle public channel messages when active
             // Send owner's messages to generateAudio endpoint
-            string username = llParseString2List(name, ["@"], [])[0];
-            username = llStringTrim(username, 3);
+            list parts = llParseString2List(name, ["@"], []);
+            string username = llList2String(parts, 0);
+            username = llStringTrim(username, STRING_TRIM);
             ait_generateAudio(username, message);
         }
     }
@@ -437,10 +474,18 @@ state active
         if (request_id == generateAudioId) {
             if(200 == status) {
                 llOwnerSay("Audio generated successfully");
+            } else if (499 == status) {
+                // ignore 499 client timeouts, they occur frequently on OpenSimulator Community Conference grid
+                return;
             } else {
                 // Report all other status codes to owner
                 llOwnerSay("HTTP Error " + (string)status + ": " + body);
             }
+            return;
+        }
+        
+        if (499 == status) {
+            // ignore 499 client timeouts, they occur frequently on OpenSimulator Community Conference grid
             return;
         }
         
@@ -464,36 +509,3 @@ state active
         }
     }
 }
-
-// Function to update visual appearance based on state
-updateVisualState(integer active)
-{
-    if (active) {
-        // Active state - bright and glowing
-        llSetColor(activeColor, ALL_SIDES);
-        llSetPrimitiveParams([PRIM_FULLBRIGHT, ALL_SIDES, TRUE]);
-    } else {
-        // Inactive state - dark and dim
-        llSetColor(inactiveColor, ALL_SIDES);
-        llSetPrimitiveParams([PRIM_FULLBRIGHT, ALL_SIDES, FALSE]);
-    }
-}
-
-// Function to show dialog based on current state
-showDialog(key user, integer isActiveState)
-{
-    if (isActiveState) {
-        // Active state dialog
-        llDialog(user, 
-            "AIT Microphone - ACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\ncurrently polling",
-            ["DeactivateMicrophone", "Close"], 
-            command_channel);
-    } else {
-        // Inactive state dialog
-        llDialog(user, 
-            "AIT Microphone - INACTIVE\n\nProperties:\nvoice: " + audio_voice + "\naudio model: " + audio_model + "\n\nclick to start interacting",
-            ["ActivateMicrophone", "Close"], 
-            command_channel);
-    }
-}
-

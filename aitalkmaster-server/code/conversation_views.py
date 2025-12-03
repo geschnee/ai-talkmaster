@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from code.shared import app, config, log, llm_log
 from code.validation_decorators import validate_chat_model_decorator, rate_limit_decorator
-from code.request_models import ConversationStartRequest, ConversationGetMessageResponseRequest, ConversationPostMessageRequest
+from code.request_models import ConversationStartRequest, ConversationPostMessageRequest
 from code.openai_response import CharacterResponse
 from code.config import ChatClientMode
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
@@ -160,25 +160,25 @@ def startConversation(request_model: ConversationStartRequest, fastapi_request: 
 
 
 @app.get("/conversation/getMessageResponse")
-def conversationGetMessage(request_model: ConversationGetMessageResponseRequest):
+def conversationGetMessage(conversation_key: str, message_id: str):
     try:
-        conversation = getConversation(conversation_key=request_model.conversation_key)
+        conversation = getConversation(conversation_key=conversation_key)
         if conversation == None:
             return JSONResponse(
                 status_code=400,
-                content={"message": f"no conversation found with key: {request_model.conversation_key}"}
+                content={"message": f"no conversation found with key: {conversation_key}"}
             )
 
-        response = conversation.findResponseByMessageId(request_model.message_id)
+        response = conversation.findResponseByMessageId(message_id)
 
         if response is None:
             return JSONResponse( 
                 status_code=425,
-                content={"message": "Waiting for message response", "conversation_key": request_model.conversation_key})
+                content={"message": "Waiting for message response", "conversation_key": conversation_key})
 
         return JSONResponse(
             status_code=200,
-            content={"response": response.content, "message_id": request_model.message_id, "conversation_key": request_model.conversation_key}
+            content={"response": response.content, "message_id": message_id, "conversation_key": conversation_key}
         )
 
     except Exception as e:

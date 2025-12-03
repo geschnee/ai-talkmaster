@@ -76,7 +76,7 @@ integer modelsValidated = 0;
 integer audioIsValidated = 0;
 integer fullyValidated = 0;
 
-key queue_code = llGenerateKey();
+key queue_code = NULL_KEY;
 
 integer isActive = 0;
 
@@ -157,12 +157,12 @@ printResponse(string response) {
     }
     
     // Print all chunks with numbering
-    integer i;
-    for (i = 0; i < llGetListLength(chunks); ++i)
+    integer j;
+    for (j = 0; j < llGetListLength(chunks); ++j)
     {
-        string chunk = llList2String(chunks, i);
-        integer i_plus = i + 1;
-        llSay(0, i_plus + " " + chunk);
+        string chunk = llList2String(chunks, j);
+        integer j_plus = j + 1;
+        llSay(0, j_plus + " " + chunk);
     }
 }
 
@@ -203,9 +203,9 @@ ait_postMessage(string message_id, string username, string message) {
 }
 
 ait_getMessageResponse(string message_id) {
-    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "message_id", message_id]);
+    string uriParams = "?join_key=" + join_key + "&message_id=" + message_id;
 
-    getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    getMessageResponseId = llHTTPRequest(ait_endpoint + "/ait/getMessageResponse" + uriParams, [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "");
 }
 
 ait_startConversation(){
@@ -230,7 +230,6 @@ transmitMessage(string username, string message){
     ait_postMessage(pollingMessageId, username, message);
 }
 
-// Function to validate model against /models endpoint
 validateModel(string modelToValidate)
 {
     llOwnerSay("Validating model: " + modelToValidate);
@@ -269,7 +268,7 @@ validateAllParameters()
     validateModel(model);
     
     validateAudioParameters(audio_voice, audio_model);
-   
+
     llSetText("currently validating parameters", <1.0, 1.0, 0.5>, 1.0);
 }
 
@@ -283,10 +282,26 @@ string truncateDialogCommand(string commandPrefix, string name)
     return llGetSubString(fullCommand, 0, 22);
 }
 
-printInfo() {
+printInfo(){
     llOwnerSay("on channel " + command_channel + " to activate type the following: Activate " + charactername);
     llOwnerSay("on channel " + command_channel + " to activate only this character, type the following: Spotlight " + charactername);
     llOwnerSay("on channel " + command_channel + " to activate all characters, type the following: ActivateAllCharacters");
+}
+
+// Function to show dialog interface
+showDialog(key user)
+{
+    string status_text="Inactive";
+    if (isActive==1){
+        status_text = "Active";
+    }
+    string activateCmd = truncateDialogCommand("Activate ", charactername);
+    string deactivateCmd = truncateDialogCommand("Deactivate ", charactername);
+    string spotlightCmd = truncateDialogCommand("Spotlight ", charactername);
+    llDialog(user, 
+        "AIT Character: " + charactername + "\nJoin Key: " + join_key + "\nStatus: " + status_text + "\n\nWhat would you like to do?",
+        [activateCmd, deactivateCmd, spotlightCmd, "Close"], 
+        command_channel);
 }
 
 default
@@ -326,24 +341,27 @@ default
         string ownerName = llKey2Name(ownerKey);
         whitelisted_users_username += [ownerName];
         whitelistNotecardQueryId = llGetNotecardLine(whitelistNotecardName, whitelistCurrentLine);
-        
-        llSetText("", <1.0, 1.0, 0.5>, 0.0);
+
+        // Clear any floating text on script start
+        llSetText("", ZERO_VECTOR, 0.0);
     }
 
     touch_start(integer total_number)
     {
         key toucher = llDetectedKey(0);
-        string username = llParseString2List(llKey2Name(toucher), ["@"], [])[0];
-        username = llStringTrim(username, 3);
         
         if (fullyValidated) {
+            list nameParts = llParseString2List(llKey2Name(toucher), ["@"], []);
+            string username = llList2String(nameParts, 0);
+            username = llStringTrim(username, 3);
+            
             if (llListFindList(whitelisted_users_username, [username]) != -1) {
                 showDialog(toucher);
             } else {
                 llInstantMessage(toucher, "You are not in the list of approved speakers.");
             }
         } else {
-            llInstantMessage(toucher, "Configuration not validated. Please reset the script and check its output.");
+            llInstantMessage(toucher, "Configuration not validated. Please check that 'llm-parameters', 'llm-system' and 'join_key' notecards exist and contain valid data. Reset the script for more details.");
         }
     }
 
@@ -354,7 +372,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 list splits = llParseString2List(line, [":"],[]);
                 
@@ -423,7 +441,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 // Add this line to our collection
                 systemNotecardLines += line;
@@ -453,7 +471,7 @@ default
         {
             if (data != EOF)
             {
-                string line = [data];
+                string line = data;
 
                 join_key = line;
 
@@ -476,7 +494,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
                 whitelisted_users_username += [line];
                 
                 // Get the next line
@@ -514,7 +532,9 @@ default
                 return;
             }
 
-            string username = llParseString2List(name, ["@"], [])[0];
+            list parts = llParseString2List(name, ["@"], []);
+            string username = llList2String(parts, 0);
+            
             username = llStringTrim(username, 3);
 
             waitingForApprovalUsername = username;
@@ -533,7 +553,8 @@ default
         }
 
         if (channel == command_channel) {
-            string username = llParseString2List(name, ["@"], [])[0];
+            string username = llList2String(llParseString2List(name, ["@"], []), 0);
+
             username = llStringTrim(username, 3);
             if (llListFindList(whitelisted_users_username, [username]) == -1){
                 // non-whitelisted_users cannot use config commands
@@ -588,7 +609,9 @@ default
                 llSetText("listening on channel 0 spotlight", <1.0, 1.0, 0.5>, 1.0);
                 isActive = 1;
             } else {
-                string commandName = llParseString2List(message, [" "], [])[0];
+                list commandParts = llParseString2List(message, [" "], []);
+                string commandName = llList2String(commandParts, 0);
+
                 if (commandName == "Spotlight") {
                     llOwnerSay(charactername + " has been deactivated by spotlight command");
                     llListenRemove(listener_public_channel);
@@ -603,7 +626,6 @@ default
                 llOwnerSay(name + " has sent a director command to the server: "+ instruction);
                 transmitMessage("Director", instruction);
             }
-            
         }
     }
 
@@ -680,7 +702,11 @@ default
                         audioModelValid = 1;
                     }
                     
-                    audioIsValidated = (voiceValid && audioModelValid) ? 1 : 0;
+                    if (voiceValid && audioModelValid) {
+                        audioIsValidated=1;
+                    } else {
+                        audioIsValidated=0;
+                    }
                 } else {
                     llOwnerSay("This AIT server is not configured for audio use");
                     audioIsValidated = 1;
@@ -728,20 +754,20 @@ default
                 listener_public_channel = llListen(0, "", "", "");
                 
                 // Show listening indicator
-                llSetText("listening on channel 0 post or get", <1.0, 1.0, 0.5>, 1.0);
+                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
 
                 string response = llJsonGetValue(body, ["response"]);
                 
                 printResponse(response);
 
                 return;
-            } else if (status != 0 && status != 425) {
-                // Stop polling on any error status (not 0, not 200, not 425)
+            } else if (status != 0 && status != 425 && status != 499) {
+                // Stop polling on any error status (not 0, not 200, not 425, not 499)
                 if (pollingForResponse == 1) {
                     pollingForResponse = 0;
                     listener_public_channel = llListen(0, "", "", "");
                     // Show listening indicator
-                    llSetText("listening on channel 0 error", <1.0, 1.0, 0.5>, 1.0);
+                    llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                     llSay(0, "HTTP Error " + (string)status + ": " + body + " - Stopping polling");
                 }
                 return;
@@ -754,6 +780,9 @@ default
         } else if (0 == status) {
             // request Timeout in OpenSimulator: returns code 0 after 30 seconds
             return;
+        } else if (499 == status) {
+            // ignore 499 client timeouts, they occur frequently on OpenSimulator Community Conference grid
+            return;
         } else if (200 == status) {
             // missed 200 (ID changed)
             return;
@@ -763,7 +792,8 @@ default
             pollingForResponse = 0;
             listener_public_channel = llListen(0, "", "", "");
             
-            llSetText("listening on channel 0 http else", <1.0, 1.0, 0.5>, 1.0);
+            // Show listening indicator
+            llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
         }
     }
 
@@ -779,7 +809,7 @@ default
                 listener_public_channel = llListen(0, "", "", "");
                 
                 // Show listening indicator
-                llSetText("listening on channel 0 timer", <1.0, 1.0, 0.5>, 1.0);
+                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 return;
             }
             ait_getMessageResponse(pollingMessageId);
@@ -793,17 +823,4 @@ default
             llResetScript();
         }
     }
-}
-
-// Function to show dialog interface
-showDialog(key user)
-{
-    string status_text = (isActive == 1) ? "Active" : "Inactive";
-    string activateCmd = truncateDialogCommand("Activate ", charactername);
-    string deactivateCmd = truncateDialogCommand("Deactivate ", charactername);
-    string spotlightCmd = truncateDialogCommand("Spotlight ", charactername);
-    llDialog(user, 
-        "AIT Character: " + charactername + "\nJoin Key: " + join_key + "\nStatus: " + status_text + "\n\nWhat would you like to do?",
-        [activateCmd, deactivateCmd, spotlightCmd, "Close"], 
-        command_channel);
 }

@@ -91,7 +91,7 @@ end
 
 def queue_audio(http_request) =
   # we should use json https://www.liquidsoap.info/doc-dev/json.html but it didn't behave as intended here after careful testing
-  parts = string.split(separator=" ", http_request.body())
+  parts = string.split(separator="::", http_request.body())
   join_key = list.nth(parts, 0)
   filename = list.nth(parts, 1)
 

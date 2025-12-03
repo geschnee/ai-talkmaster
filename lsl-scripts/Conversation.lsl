@@ -146,12 +146,12 @@ printResponse(string response) {
     }
     
     // Print all chunks with numbering
-    integer i;
-    for (i = 0; i < llGetListLength(chunks); ++i)
+    integer j;
+    for (j = 0; j < llGetListLength(chunks); ++j)
     {
-        string chunk = llList2String(chunks, i);
-        integer i_plus = i + 1;
-        llSay(0, i_plus + " " + chunk);
+        string chunk = llList2String(chunks, j);
+        integer j_plus = j + 1;
+        llSay(0, j_plus + " " + chunk);
     }
 }
 
@@ -255,9 +255,9 @@ conversation_postMessage(string conversation_key, string message) {
 }
 
 conversation_getMessageResponse(string conversation_key) {
-    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message_id", (string) conversation_message_id]);
+    string uriParams = "?conversation_key=" + conversation_key + "&message_id=" + (string) conversation_message_id;
 
-    getMessageResponseId = llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse", [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
+    getMessageResponseId = llHTTPRequest(ait_endpoint + "/conversation/getMessageResponse" + uriParams, [HTTP_METHOD, "GET", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], "");
 }
 
 set_ready() {
@@ -306,7 +306,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 list splits = llParseString2List(line, [":"],[]);
                 
@@ -358,7 +358,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 // Add this line to our collection
                 systemNotecardLines += line;
@@ -542,8 +542,8 @@ default
                 llSetText("Continue chatting on channel 0", <1.0, 1.0, 0.5>, 1.0);
                 
                 return;
-            } else if (status != 0 && status != 425) {
-                // Stop polling on any error status (not 0, not 200, not 425)
+            } else if (status != 0 && status != 425 && status != 499) {
+                // Stop polling on any error status (not 0, not 200, not 425, not 499)
                 if (pollingResponse == 1) {
                     pollingResponse = 0;
                     conversation_message_id = NULL_KEY;
@@ -565,6 +565,9 @@ default
             return;
         } else if (0 == status) {
             // request Timeout in OpenSimulator: returns code 0 after 30 seconds
+            return;
+        } else if (499 == status) {
+            // ignore 499 client timeouts, they occur frequently on OpenSimulator Community Conference grid
             return;
         } else if (200 == status) {
             // missed 200 (ID changed)

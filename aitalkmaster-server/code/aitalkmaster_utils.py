@@ -193,7 +193,7 @@ def start_liquidsoap(stream_name: str) -> bool:
 def queue_audio(stream_name: str, filename: str) -> bool:
     """Queue an audio file for a specific liquidsoap stream via HTTP request"""
     log(f"[+] Queuing audio file '{filename}' for '{stream_name}'")
-    data = f"{stream_name} {filename}"
+    data = f"{stream_name}::{filename}"
     success = send_http_command("/queue_audio", data)
     return success
 

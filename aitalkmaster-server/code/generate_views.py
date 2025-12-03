@@ -1,37 +1,32 @@
 from fastapi.responses import JSONResponse
 from datetime import datetime
 
-
 from code.shared import app, config, log, llm_log
 from code.validation_decorators import validate_chat_model_decorator, rate_limit_decorator
-from code.request_models import GenerateGetMessageResponseRequest, GenerateRequest
+from code.request_models import GenerateRequest
 from code.config import ChatClientMode
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
 from fastapi import Request
 
-
 generate_response_queue = []
 MAX_CHATS_NO_HISTORY = 1000
 
-
 @app.get("/generate/getMessageResponse")
-def generateGetMessageResponse(request: GenerateGetMessageResponseRequest):
+def generateGetMessageResponse(message_id: str):
     try:
-
-        
         for response in generate_response_queue:
-            if response["message_id"]==request.message_id:
+            if response["message_id"]==message_id:
                 return JSONResponse( 
                     status_code=200,
                     content={
-                        "message_id": request.message_id,
+                        "message_id": message_id,
                         "response": response["response"]
                     }
                 )
             
         return JSONResponse(
             status_code=425,
-            content={"message": f"requested response for {request.message_id} not in list"}
+            content={"message": f"requested response for {message_id} not in list"}
         )
 
     except Exception as e:

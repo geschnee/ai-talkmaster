@@ -81,7 +81,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
 
                 join_key = line;
                 llOwnerSay("join_key has been read " + join_key);
@@ -95,7 +95,7 @@ default
             if (data != EOF)
             {
 
-                string line = [data];
+                string line = data;
                 whitelisted_users += [line];
                 
                 // Get the next line
@@ -201,6 +201,9 @@ default
                 if (stream_url != "") {
                     llInstantMessage(user_key, "Audio Stream is available at: " + stream_url);
                 }
+            } else if (499 == status) {
+                // ignore 499 client timeouts, they occur frequently on OpenSimulator Community Conference grid
+                return;
             } else {
                 llInstantMessage(user_key, "Error: Failed to start conversation " + join_key + ". Status: " + (string)status + " - " + body);
             }

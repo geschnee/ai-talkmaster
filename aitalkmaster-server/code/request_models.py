@@ -4,8 +4,8 @@ from typing import Optional
 from pydantic import BaseModel
 
 # Generate requests (single-character conversations without history)
-class GenerateGetMessageResponseRequest(BaseModel):
-    message_id: str
+#class GenerateGetMessageResponseRequest(BaseModel):
+#    message_id: str
 
 class GenerateRequest(BaseModel):
     message_id: str
@@ -25,11 +25,6 @@ class ConversationPostMessageRequest(BaseModel):
     message: str
     message_id: str
 
-class ConversationGetMessageResponseRequest(BaseModel):
-    conversation_key: str
-    message_id: str
-
-
 # AI Talkmaster requests (multi-character conversations with history and audio streaming)
 class AitPostMessageRequest(BaseModel):
     join_key: str
@@ -44,10 +39,6 @@ class AitPostMessageRequest(BaseModel):
     audio_instructions: Optional[str] = ""
     audio_model: Optional[str] = ""
 
-class AitMessageResponseRequest(BaseModel):
-    join_key: str
-    message_id: str
-
 class AitResetJoinkeyRequest(BaseModel):
     join_key: str
 
@@ -61,4 +52,3 @@ class AitGenerateAudioRequest(BaseModel):
     audio_instructions: Optional[str] = ""
     audio_voice: Optional[str] = ""
     audio_model: Optional[str] = ""
-
