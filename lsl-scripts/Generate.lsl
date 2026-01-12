@@ -63,8 +63,23 @@ list optionParameters_floats = ["repeat_penalty","temperature","top_p","min_p"];
 list optionsList = [];
 
 
+// Function to unescape JSON string values (converts \" to " and other escape sequences)
+string unescapeJsonString(string jsonStr) {
+    // Replace escaped quotes with actual quotes
+    jsonStr = llReplaceSubString(jsonStr, "\\\"", "\"", 0);
+    // Replace other common JSON escape sequences
+    jsonStr = llReplaceSubString(jsonStr, "\\n", "\n", 0);
+    jsonStr = llReplaceSubString(jsonStr, "\\t", "\t", 0);
+    jsonStr = llReplaceSubString(jsonStr, "\\r", "\r", 0);
+    jsonStr = llReplaceSubString(jsonStr, "\\\\", "\\", 0);
+    return jsonStr;
+}
+
 // Function to print response text, splitting into chunks if necessary
 printResponse(string response) {
+    // Unescape JSON escape sequences to get proper quotation marks
+    response = unescapeJsonString(response);
+    
     integer textLength = llStringLength(response);
     list chunks = [];
     
