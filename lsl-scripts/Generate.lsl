@@ -141,7 +141,7 @@ printResponse(string response) {
     {
         string chunk = llList2String(chunks, j);
         integer j_plus = j + 1;
-        llSay(0, j_plus + " " + chunk);
+        llSay(0, (string) j_plus + " " + (string) chunk);
     }
 }
 

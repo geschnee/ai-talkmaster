@@ -155,7 +155,7 @@ printResponse(string response) {
     {
         string chunk = llList2String(chunks, j);
         integer j_plus = j + 1;
-        llSay(0, j_plus + " " + chunk);
+        llSay(0, (string) j_plus + " " + chunk);
     }
 }
 
@@ -277,9 +277,9 @@ string truncateDialogCommand(string commandPrefix, string name)
 
 
 printInfo(){
-    llOwnerSay("on channel " + command_channel + " to activate type the following: Activate " + charactername);
-    llOwnerSay("on channel " + command_channel + " to activate only this character, type the following: spotlight " + charactername);
-    llOwnerSay("on channel " + command_channel + " to activate all characters, type the following: ActivateAllCharacters");
+    llOwnerSay("on channel " + (string) command_channel + " to activate type the following: Activate " + charactername);
+    llOwnerSay("on channel " + (string) command_channel + " to activate only this character, type the following: spotlight " + charactername);
+    llOwnerSay("on channel " + (string) command_channel + " to activate all characters, type the following: ActivateAllCharacters");
 }
 
 // Function to show dialog interface

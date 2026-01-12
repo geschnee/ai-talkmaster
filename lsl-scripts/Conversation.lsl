@@ -151,7 +151,7 @@ printResponse(string response) {
     {
         string chunk = llList2String(chunks, j);
         integer j_plus = j + 1;
-        llSay(0, j_plus + " " + chunk);
+        llSay(0, (string) j_plus + " " + chunk);
     }
 }
 
@@ -412,7 +412,7 @@ default
             llSay(0, "Sorry I am currently in use by " + llKey2Name(user) + ". Please await your turn." );
         } else if (user!=NULL_KEY && llDetectedKey(0) == user ) {
             if (pollingResponse == 1) {
-                llInstantMessage(user, "Conversation in progress, I am waiting for the generated response. You can abort this conversation on channel" + command_channel + " with this command: ExitConversation");
+                llInstantMessage(user, "Conversation in progress, I am waiting for the generated response. You can abort this conversation on channel" + (string) command_channel + " with this command: ExitConversation");
             } else {
                 llInstantMessage(user, "You can send more messages.");
             }            
