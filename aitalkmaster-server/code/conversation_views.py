@@ -1,6 +1,7 @@
 from fastapi.responses import JSONResponse
 from datetime import datetime
 import uuid
+import traceback
 
 from typing import Optional
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from code.openai_response import CharacterResponse
 from code.config import ChatClientMode
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
 from fastapi import Request
+from code.message_queue import queue_message_request, RequestType
 
 conversation_queue = []
 MAX_ACTIVE_CONVERSATIONS = 1000
@@ -187,7 +189,7 @@ def conversationGetMessage(conversation_key: str, message_id: str):
             content=f"Internal server error getMessage: {e}"
         )
 
-def get_response_ollama_conversation(conversation: Conversation, fastapi_request: Request) -> str:
+def get_response_ollama_conversation(conversation: Conversation, ip_address: str) -> str:
     full_dialog = []
     full_dialog.append({
         "role": "system",
@@ -198,13 +200,11 @@ def get_response_ollama_conversation(conversation: Conversation, fastapi_request
 
     response = config.get_or_create_ollama_chat_client().chat(model=conversation.model, messages = full_dialog, options=conversation.options)
 
-    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     increment_resource_usage(ip_address, response["eval_count"])
-
 
     return response["message"]["content"]
 
-def get_response_openai_conversation(conversation: Conversation, fastapi_request: Request) -> str:
+def get_response_openai_conversation(conversation: Conversation, ip_address: str) -> str:
     response = config.get_or_create_openai_chat_client().responses.parse(
         model=conversation.model,
         input=conversation.getDialog(),
@@ -213,49 +213,75 @@ def get_response_openai_conversation(conversation: Conversation, fastapi_request
         store=False
     )
 
-    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     increment_resource_usage(ip_address, response.usage.total_tokens)
 
     return response.output_parsed.text_response # type: ignore
+
+def process_conversation_post_message(request_model: ConversationPostMessageRequest, ip_address: str):
+    """Process a conversation postMessage request in the background"""
+    try:
+        conversation = getConversation(conversation_key=request_model.conversation_key)
+        if conversation == None:
+            log(f'Error: no conversation found with key: {request_model.conversation_key}')
+            return
+
+        conversation.addMessage(request_model.message, request_model.message_id)
+        
+        if config.chat_client.mode == ChatClientMode.OPENAI:
+            response_msg = get_response_openai_conversation(conversation, ip_address)
+        elif config.chat_client.mode == ChatClientMode.OLLAMA:
+            response_msg = get_response_ollama_conversation(conversation, ip_address)
+        else:
+            log(f'Error: unknown chat client mode: {config.chat_client.mode}')
+            return
+
+        conversation.addResponse(response_msg, request_model.message_id)
+
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} conversation/postMessage (background): data:{request_model.model_dump()} conversation:{conversation}')
+        
+    except Exception as e:
+        log(f'exception in process_conversation_post_message: {e}')
+        log(f'stack: {traceback.print_exc()}')
 
 @app.post("/conversation/postMessage")
 @rate_limit_decorator
 def conversationPostMessage(request_model: ConversationPostMessageRequest, fastapi_request: Request):
     try:
+        # Check if conversation exists
         conversation = getConversation(conversation_key=request_model.conversation_key)
         if conversation == None:
             return JSONResponse(
                 status_code=400,
                 content={"message": f"no conversation found with key: {request_model.conversation_key}"}
             )
-
-
-        conversation.addMessage(request_model.message, request_model.message_id)
         
-
-        if config.chat_client.mode == ChatClientMode.OPENAI:
-            response_msg = get_response_openai_conversation(conversation, fastapi_request)
-        elif config.chat_client.mode == ChatClientMode.OLLAMA:
-            response_msg = get_response_ollama_conversation(conversation, fastapi_request)
-        else:
+        # Extract IP address for rate limiting in background processing
+        ip_address, error = get_ip_address_for_rate_limit(fastapi_request)
+        if error:
             return JSONResponse(
                 status_code=500,
                 content={
-                    "error": f'unknown chat client mode: {config.chat_client.mode}'
+                    "error": error
                 }
             )
-
-        conversation.addResponse(response_msg, request_model.message_id)
-
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} conversation/postMessage: data:{request_model.model_dump()} conversation:{conversation}')
         
-        return JSONResponse( 
-            status_code=200,
-            content={"response": response_msg, "message_id": request_model.message_id, "conversation_key": request_model.conversation_key}
+        # Queue the request for background processing
+        queue_message_request(RequestType.CONVERSATION, request_model, ip_address, process_conversation_post_message)
+        
+        # Return 425 to indicate the request is being processed
+        return JSONResponse(
+            status_code=425,
+            content={
+                "message_id": request_model.message_id,
+                "conversation_key": request_model.conversation_key,
+                "status": "processing",
+                "info": "Request queued for background processing"
+            }
         )
 
     except Exception as e:
-        log(f"Exception {e}")
+        log(f"Exception in /conversation/postMessage: {e}")
+        log(f'stack: {traceback.print_exc()}')
         return JSONResponse(
             status_code=500,
             content=f"Internal server error in postMessage: {e}"

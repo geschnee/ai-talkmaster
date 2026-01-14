@@ -20,6 +20,14 @@ import code.conversation_views
 import code.generate_views
 import code.other_views
 
+# Start unified background message worker threads
+from code.message_queue import start_background_message_workers, start_background_audio_generation_workers
+# These workers handle all types of requests: ait, conversation, and generate
+# Number of workers is configured in config.yml under server.num_workers (default: 4)
+start_background_message_workers(num_workers=config.server.num_workers)
+# Audio generation workers use a separate queue and are configured under server.num_audio_workers (default: 4)
+start_background_audio_generation_workers(num_workers=config.server.num_audio_workers)
+
 # Start background monitoring thread
 
 if config.icecast_client is not None:

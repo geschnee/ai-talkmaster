@@ -42,6 +42,8 @@ class ServerConfig:
     port: int = 6000
     log_file: str = "logfile.txt"
     llm_log_file: str = "llm_logfile.txt"
+    num_workers: int = 4
+    num_audio_workers: int = 4
     usage: UsageConfig = None
 
 @dataclass
@@ -135,6 +137,8 @@ class Config:
             port=server_data.get('port'),
             log_file=server_data.get('log_file'),
             llm_log_file=server_data.get('llm_log_file'),
+            num_workers=server_data.get('num_workers', 4),
+            num_audio_workers=server_data.get('num_audio_workers', 4),
             usage=UsageConfig(
                 use_rate_limit=usage_data.get('use_rate_limit'),
                 rate_limit_xForwardedFor=usage_data.get('rate_limit_xForwardedFor'),
@@ -312,6 +316,8 @@ class Config:
                 'port': self.server.port,
                 'log_file': self.server.log_file,
                 'llm_log_file': self.server.llm_log_file,
+                'num_workers': self.server.num_workers,
+                'num_audio_workers': self.server.num_audio_workers,
                 'usage': {
                     'use_rate_limit': self.server.usage.use_rate_limit,
                     'rate_limit_xForwardedFor': self.server.usage.rate_limit_xForwardedFor,

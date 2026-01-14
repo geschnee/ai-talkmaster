@@ -19,11 +19,12 @@ from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 import io
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
+from code.message_queue import queue_message_request, RequestType, queue_audio_generation_request
 
 active_aitalkmaster_instances = {}
 finished_aitalkmaster_instances = []
 
-def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: str, audio_instructions: str, fastapi_request: Request):
+def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: str, audio_instructions: str, ip_address: str):
     if config.audio_client.mode == AudioClientMode.OPENAI:
         response = config.get_or_create_openai_audio_client().audio.speech.create(
             model=audio_model,
@@ -32,9 +33,6 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
             instructions=audio_instructions,
             response_format="mp3",
             speed=1.0)
-        
-        
-        # log(f'headers: {response.response.headers}')
         # the headers do not provide a direct "cost"
         # we should use the duration of the audio to estimate the cost
     else:
@@ -55,7 +53,6 @@ def save_audio(filename: str, response_msg: str, audio_voice: str, audio_model: 
 
     log(f'duration_seconds: {duration_seconds}')
     
-    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     # Use duration as weight for rate limiting (duration in seconds)
     increment_resource_usage(ip_address, duration_seconds * config.server.usage.audio_cost_per_second)
 
@@ -169,7 +166,7 @@ def move_audio_files_to_inactive(join_key: str):
         log(f'Error moving audio files for {join_key}: {e}')
         return False
 
-def get_response_ollama(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance, fastapi_request: Request) -> str:
+def get_response_ollama(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance, ip_address: str) -> str:
     full_dialog = []
     full_dialog.append({
         "role": "system",
@@ -182,12 +179,11 @@ def get_response_ollama(request: AitPostMessageRequest, ait_instance: Aitalkmast
     
     response_msg = remove_name(response["message"]["content"], request.charactername)
 
-    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     increment_resource_usage(ip_address, response["eval_count"])
     
     return response_msg
 
-def get_response_openai(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance, fastapi_request: Request) -> str:
+def get_response_openai(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance, ip_address: str) -> str:
 
     response = config.get_or_create_openai_chat_client().responses.parse(
         model=request.model,
@@ -197,7 +193,6 @@ def get_response_openai(request: AitPostMessageRequest, ait_instance: Aitalkmast
         store=False
     )
 
-    ip_address, _ = get_ip_address_for_rate_limit(fastapi_request)
     increment_resource_usage(ip_address, response.usage.total_tokens)
 
     response_msg = remove_name(response.output_parsed.text_response, request.charactername)
@@ -228,44 +223,30 @@ def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
         active_aitalkmaster_instances[join_key] = ait_instance
     return ait_instance
 
-
-@app.post("/ait/postMessage")
-@validate_join_key_decorator
-@validate_chat_model_decorator
-@validate_audio_decorator
-@rate_limit_decorator
-def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Request):
+def process_post_message(request_model: AitPostMessageRequest, ip_address: str):
+    """Process a postMessage request in the background"""
     try:
         data_json = request_model.model_dump()
-        log(f'postMessage data: {data_json}')
+        log(f'Processing queued postMessage data: {data_json}')
 
         join_key = request_model.join_key
 
         ait_instance = get_or_create_ait_instance(join_key)
 
+        # Check if message_id already exists (this should have been checked before queuing, but double-check)
         if ait_instance.contains_message_id(request_model.message_id):
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "message_id": request_model.message_id, 
-                    "error": f'Invalid message ID, already exists in ait with key {request_model.join_key}'
-                }
-            )
+            log(f'Warning: message_id {request_model.message_id} already exists in ait with key {request_model.join_key}')
+            return
         
         ait_instance.addUserMessage(request_model.message, name=request_model.username, message_id=request_model.message_id)
         
-
         if config.chat_client.mode == ChatClientMode.OPENAI:
-            response_msg = get_response_openai(request_model, ait_instance, fastapi_request)
+            response_msg = get_response_openai(request_model, ait_instance, ip_address)
         elif config.chat_client.mode == ChatClientMode.OLLAMA:
-            response_msg = get_response_ollama(request_model, ait_instance, fastapi_request)
+            response_msg = get_response_ollama(request_model, ait_instance, ip_address)
         else:
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": f'unknown chat client mode: {config.chat_client.mode}'
-                }
-            )
+            log(f'Error: unknown chat client mode: {config.chat_client.mode}')
+            return
 
         if config.audio_client is not None:
             full_name, filename = build_filename(request_model, ait_instance)
@@ -276,20 +257,99 @@ def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Reques
         ait_instance.addResponse(response_msg, request_model.charactername, response_id=request_model.message_id, filename=filename)
 
         if config.audio_client is not None:
-            save_audio(full_name, response_msg, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", fastapi_request)
+            save_audio(full_name, response_msg, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", ip_address)
             save_metadata(full_name, request_model.charactername, join_key)
             queue_audio(join_key, filename)
-        
             ait_instance.set_audio_created_at(request_model.message_id, time.time())
         
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage: message: {request_model.message} response: {response_msg}')
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage (background): message: {request_model.message} response: {response_msg}')
         
+    except Exception as e:
+        log(f'exception in process_post_message: {e}')
+        log(f'stack: {traceback.print_exc()}')
 
+def process_generate_audio(request_model: AitGenerateAudioRequest, ip_address: str):
+    """Process a generateAudio request in the background"""
+    try:
+        data_json = request_model.model_dump()
+        log(f'Processing queued generateAudio data: {data_json}')
+
+        if config.audio_client is None:
+            log(f'Error: audio is not available on this AI Talkmaster server')
+            return
+
+        join_key = request_model.join_key
+
+        ait_instance = get_or_create_ait_instance(join_key)  # This starts the audio stream if it is not already running
+
+        # Create directory for the join_key if it doesn't exist
+        join_key_dir = Path(f'./generated-audio/active/{request_model.join_key}')
+        join_key_dir.mkdir(parents=True, exist_ok=True)
+        
+        sequence_str = ait_instance.generate_sequence_str()
+        
+        # Generate filename with sequence number
+        filename = f'{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}.mp3'
+        full_name = f'./generated-audio/active/{request_model.join_key}/{filename}'
+        
+        save_audio(full_name, request_model.message, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", ip_address)
+
+        save_metadata(full_name, request_model.username, join_key)
+
+        queue_audio(join_key, filename)
+        
+        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio (background): message: {request_model.message} -> {filename}')
+        
+    except Exception as e:
+        log(f'exception in process_generate_audio: {e}')
+        log(f'stack: {traceback.print_exc()}')
+
+
+@app.post("/ait/postMessage")
+@validate_join_key_decorator
+@validate_chat_model_decorator
+@validate_audio_decorator
+@rate_limit_decorator
+def postaitMessage(request_model: AitPostMessageRequest, fastapi_request: Request):
+    try:
+        data_json = request_model.model_dump()
+        log(f'postMessage data (queued): {data_json}')
+
+        join_key = request_model.join_key
+
+        # Get or create instance to check for duplicate message_id
+        ait_instance = get_or_create_ait_instance(join_key)
+
+        # Check if message_id already exists
+        if ait_instance.contains_message_id(request_model.message_id):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "message_id": request_model.message_id, 
+                    "error": f'Invalid message ID, already exists in ait with key {request_model.join_key}'
+                }
+            )
+        
+        # Extract IP address for rate limiting in background processing
+        ip_address, error = get_ip_address_for_rate_limit(fastapi_request)
+        if error:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": error
+                }
+            )
+        
+        # Queue the request for background processing
+        queue_message_request(RequestType.AIT, request_model, ip_address, process_post_message)
+        
+        # Return 425 to indicate the request is being processed
         return JSONResponse(
-            status_code=200,
+            status_code=425,
             content={
-                "message_id": request_model.message_id, 
-                "response": response_msg
+                "message_id": request_model.message_id,
+                "status": "processing",
+                "info": "Request queued for background processing"
             }
         )
     except Exception as e:
@@ -453,7 +513,6 @@ def startStream(request_model: AitStartConversationRequest, fastapi_request: Req
 @validate_join_key_decorator
 def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Request):
     try:
-
         if config.audio_client is None:
             return JSONResponse(
                 status_code=400,
@@ -464,43 +523,36 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
 
         join_key = request_model.join_key
 
-        ait_instance = get_or_create_ait_instance(join_key) # This starts the audio stream if it is not already running
-
-        # Create directory for the join_key if it doesn't exist
-        join_key_dir = Path(f'./generated-audio/active/{request_model.join_key}')
-        join_key_dir.mkdir(parents=True, exist_ok=True)
+        # Extract IP address for rate limiting in background processing
+        ip_address, error = get_ip_address_for_rate_limit(fastapi_request)
+        if error:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": error
+                }
+            )
         
-        sequence_str = ait_instance.generate_sequence_str()
+        # Queue the request for background processing in the separate audio generation queue
+        queue_audio_generation_request(request_model, ip_address, process_generate_audio)
         
-        # Generate filename with sequence number
-        filename = f'{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}.mp3'
-        full_name = f'./generated-audio/active/{request_model.join_key}/{filename}'
-        
-        save_audio(full_name, request_model.message, request_model.audio_voice, request_model.audio_model, request_model.audio_instructions, fastapi_request)
-
-        save_metadata(full_name, request_model.username, join_key)
-
-        queue_audio(join_key, filename)
-        
-        log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio: message: {request_model.message} -> {filename}')
-        
+        # Return 425 to indicate the request is being processed
         if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
             stream_url = config.icecast_client.stream_endpoint_prefix + join_key
-
             return JSONResponse(
-                status_code=200,
+                status_code=425,
                 content={
-                    "filename": filename,
-                    "status": "success",
+                    "status": "processing",
+                    "info": "Request queued for background processing",
                     "stream_url": stream_url
                 }
             )
         else:
             return JSONResponse(
-                status_code=200,
+                status_code=425,
                 content={
-                    "filename": filename,
-                    "status": "success"
+                    "status": "processing",
+                    "info": "Request queued for background processing"
                 }
             )
             

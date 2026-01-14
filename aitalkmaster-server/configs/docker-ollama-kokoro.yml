@@ -4,6 +4,8 @@ server:
   port: 6000
   log_file: "./logs/logfile.txt"
   llm_log_file: "./logs/llm_logfile.txt"
+  num_workers: 4
+  num_audio_workers: 4
   usage:
     use_rate_limit: true
     rate_limit_xForwardedFor: false
