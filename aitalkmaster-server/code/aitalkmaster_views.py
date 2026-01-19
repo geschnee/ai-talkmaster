@@ -536,11 +536,11 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
         # Queue the request for background processing in the separate audio generation queue
         queue_audio_generation_request(request_model, ip_address, process_generate_audio)
         
-        # Return 425 to indicate the request is being processed
+        # Return 200 to indicate the request has been queued
         if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
             stream_url = config.icecast_client.stream_endpoint_prefix + join_key
             return JSONResponse(
-                status_code=425,
+                status_code=200,
                 content={
                     "status": "processing",
                     "info": "Request queued for background processing",
@@ -549,7 +549,7 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
             )
         else:
             return JSONResponse(
-                status_code=425,
+                status_code=200,
                 content={
                     "status": "processing",
                     "info": "Request queued for background processing"
