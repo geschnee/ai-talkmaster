@@ -77,7 +77,8 @@ class IcecastClientConfig:
     port: int = 8000
     admin_user: str = "admin"
     admin_password: str = "password"
-    stream_endpoint_prefix: str = ""
+    aitalkmaster_stream_endpoint_prefix: str = ""
+    translation_stream_endpoint_prefix: str = ""
 
 @dataclass
 class AitalkmasterConfig:
@@ -209,7 +210,8 @@ class Config:
                 host=icecast_client_data.get('host'),
                 port=icecast_client_data.get('port'),
                 admin_password=icecast_client_data.get('admin_password'),
-                stream_endpoint_prefix=icecast_client_data.get('stream_endpoint_prefix'),
+                aitalkmaster_stream_endpoint_prefix=icecast_client_data.get('aitalkmaster_stream_endpoint_prefix', ''),
+                translation_stream_endpoint_prefix=icecast_client_data.get('translation_stream_endpoint_prefix', ''),
             )
         else:
             self.icecast_client = None
@@ -222,18 +224,32 @@ class Config:
         
         # Validate stream endpoint prefix if audio client is configured
         self._validate_stream_endpoint_prefix()
+
+        self._validate_translation_stream_endpoint_prefix()
         
         # Validate all configured models and voices
         self._validate_configuration()
     
     def _validate_stream_endpoint_prefix(self):
         """
-        Validate that stream_endpoint_prefix is not empty when audio_client is configured.
+        Validate that aitalkmaster_stream_endpoint_prefix is not empty when audio_client is configured.
         Raises ConfigurationValidationError if validation fails.
+        Note: translation_stream_endpoint_prefix is optional and only needed if translation features are used.
         """
         if self.audio_client is not None and self.icecast_client is not None:
-            if not self.icecast_client.stream_endpoint_prefix or self.icecast_client.stream_endpoint_prefix.strip() == "":
-                error_message = "icecast_client.stream_endpoint_prefix is required and cannot be empty when audio_client is configured, this variable is returned to the user to inform where to listen to for audio."
+            if not self.icecast_client.aitalkmaster_stream_endpoint_prefix or self.icecast_client.aitalkmaster_stream_endpoint_prefix.strip() == "":
+                error_message = "icecast_client.aitalkmaster_stream_endpoint_prefix is required and cannot be empty when audio_client is configured, this variable is returned to the user to inform where to listen to for audio."
+                log(f"FATAL: {error_message}")
+                raise ConfigurationValidationError(error_message)
+
+    def _validate_translation_stream_endpoint_prefix(self):
+        """
+        Validate that translation_stream_endpoint_prefix is not empty when translation features are used.
+        Raises ConfigurationValidationError if validation fails.
+        """
+        if self.icecast_client is not None:
+            if not self.icecast_client.translation_stream_endpoint_prefix or self.icecast_client.translation_stream_endpoint_prefix.strip() == "":
+                error_message = "icecast_client.translation_stream_endpoint_prefix is required and cannot be empty when translation features are used, this variable is returned to the user to inform where to listen to for audio."
                 log(f"FATAL: {error_message}")
                 raise ConfigurationValidationError(error_message)
     
@@ -348,7 +364,8 @@ class Config:
                 'host': self.icecast_client.host,
                 'port': self.icecast_client.port,
                 'admin_password': self.icecast_client.admin_password,
-                'stream_endpoint_prefix': self.icecast_client.stream_endpoint_prefix
+                'aitalkmaster_stream_endpoint_prefix': self.icecast_client.aitalkmaster_stream_endpoint_prefix,
+                'translation_stream_endpoint_prefix': self.icecast_client.translation_stream_endpoint_prefix
             } if self.icecast_client else None,
             'aitalkmaster': {
                 'join_key_keep_alive_list': self.aitalkmaster.join_key_keep_alive_list

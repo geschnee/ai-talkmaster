@@ -1,11 +1,6 @@
 
 from typing import Optional
-
 from pydantic import BaseModel
-
-# Generate requests (single-character conversations without history)
-#class GenerateGetMessageResponseRequest(BaseModel):
-#    message_id: str
 
 class GenerateRequest(BaseModel):
     message_id: str
@@ -52,3 +47,14 @@ class AitGenerateAudioRequest(BaseModel):
     audio_instructions: Optional[str] = ""
     audio_voice: Optional[str] = ""
     audio_model: Optional[str] = ""
+
+# Translation requests
+class TranslationRequest(BaseModel):
+    session_key: str
+    message: str
+    source_language: str
+    target_language: str
+    model: Optional[str] = ""
+    audio_voice: Optional[str] = ""
+    audio_model: Optional[str] = ""
+    message_id: str

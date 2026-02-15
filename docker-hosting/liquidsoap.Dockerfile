@@ -13,7 +13,8 @@ RUN mkdir -p /scripts /var/log/liquidsoap
 # Copy liquidsoap scripts
 COPY ./start-stop-server-request-queue-http.liq /scripts/start-stop-server.liq
 
-COPY ./fallback-audio /fallback-audio
+COPY ./fallback-audio-ait /fallback-audio-ait
+COPY ./fallback-audio-translate /fallback-audio-translate
 
 # Set proper permissions
 RUN chown -R liquidsoap:liquidsoap /scripts /var/log/liquidsoap

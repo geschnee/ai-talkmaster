@@ -9,26 +9,27 @@ from dataclasses import dataclass
 from typing import Union, Callable, Any
 
 from code.shared import log
-from code.request_models import AitPostMessageRequest, ConversationPostMessageRequest, GenerateRequest, AitGenerateAudioRequest
+from code.request_models import AitPostMessageRequest, ConversationPostMessageRequest, GenerateRequest, AitGenerateAudioRequest, TranslationRequest
 
 class RequestType(Enum):
     """Type of request in the queue"""
     AIT = "ait"
     CONVERSATION = "conversation"
     GENERATE = "generate"
+    TRANSLATION = "translation"
 
 @dataclass
 class QueuedMessageRequest:
     """Unified queued message request for background processing"""
     request_type: RequestType
-    request_model: Union[AitPostMessageRequest, ConversationPostMessageRequest, GenerateRequest]
+    request_model: Union[AitPostMessageRequest, ConversationPostMessageRequest, GenerateRequest, TranslationRequest]
     ip_address: str
     processor: Callable[[Any, str], None]  # Function to process this request: (request_model, ip_address) -> None
 
 @dataclass
 class QueuedAudioGenerationRequest:
     """Queued audio generation request for background processing"""
-    request_model: AitGenerateAudioRequest
+    request_model: Union[AitGenerateAudioRequest]  # Supports ait audio generation only
     ip_address: str
     processor: Callable[[Any, str], None]  # Function to process this request: (request_model, ip_address) -> None
 
@@ -38,7 +39,7 @@ message_queue = queue.Queue()
 # Separate queue for audio generation requests (doesn't wait for other content)
 audio_generation_queue = queue.Queue()
 
-def queue_message_request(request_type: RequestType, request_model: Union[AitPostMessageRequest, ConversationPostMessageRequest, GenerateRequest], ip_address: str, processor: Callable):
+def queue_message_request(request_type: RequestType, request_model: Union[AitPostMessageRequest, ConversationPostMessageRequest, GenerateRequest, TranslationRequest], ip_address: str, processor: Callable):
     """Queue a message request for background processing"""
     queued_request = QueuedMessageRequest(
         request_type=request_type,
@@ -73,8 +74,8 @@ def background_message_worker():
             log(f'Error in {worker_name}: {e}')
             log(f'stack: {traceback.print_exc()}')
 
-def queue_audio_generation_request(request_model: AitGenerateAudioRequest, ip_address: str, processor: Callable):
-    """Queue an audio generation request for background processing in a separate queue"""
+def queue_audio_generation_request(request_model: Union[AitGenerateAudioRequest, TranslationRequest], ip_address: str, processor: Callable):
+    """Queue an audio generation or translation request for background processing in a separate queue"""
     queued_request = QueuedAudioGenerationRequest(
         request_model=request_model,
         ip_address=ip_address,
@@ -83,19 +84,23 @@ def queue_audio_generation_request(request_model: AitGenerateAudioRequest, ip_ad
     audio_generation_queue.put(queued_request)
 
 def background_audio_generation_worker():
-    """Background worker thread that processes queued audio generation requests"""
+    """Background worker thread that processes queued audio generation and translation requests"""
     worker_name = threading.current_thread().name
     while True:
         try:
             # Get a queued request (blocks until one is available)
             queued_request = audio_generation_queue.get()
             
-            log(f'{worker_name}: Processing queued audio generation request for join_key: {queued_request.request_model.join_key}')
+            # Get identifier for logging (join_key for audio generation, session_key for translation)
+            identifier = getattr(queued_request.request_model, 'join_key', None) or getattr(queued_request.request_model, 'session_key', 'unknown')
+            request_type = 'translation' if hasattr(queued_request.request_model, 'session_key') else 'audio generation'
+            
+            log(f'{worker_name}: Processing queued {request_type} request for {identifier}')
             
             # Process the request using the provided processor function
             queued_request.processor(queued_request.request_model, queued_request.ip_address)
             
-            log(f'{worker_name}: Completed processing audio generation request for join_key: {queued_request.request_model.join_key}')
+            log(f'{worker_name}: Completed processing {request_type} request for {identifier}')
             
             # Mark the task as done
             audio_generation_queue.task_done()

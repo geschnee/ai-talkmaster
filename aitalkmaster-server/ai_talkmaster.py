@@ -18,6 +18,7 @@ log(f'config: {config.get_config_summary()}')
 import code.aitalkmaster_views
 import code.conversation_views
 import code.generate_views
+import code.translation_views
 import code.other_views
 
 # Start unified background message worker threads

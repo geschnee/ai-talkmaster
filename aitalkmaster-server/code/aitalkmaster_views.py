@@ -5,18 +5,18 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
 
 import traceback
 
 from code.config import ChatClientMode, AudioClientMode
-from code.aitalkmaster_utils import AitalkmasterInstance, remove_name, start_liquidsoap, queue_audio
+from code.aitalkmaster_utils import AitalkmasterInstance, remove_name
+from code.audio_utils import start_aitalkmaster_stream, queue_aitalkmaster_audio
 from code.request_models import AitPostMessageRequest, AitResetJoinkeyRequest, AitGenerateAudioRequest, AitStartConversationRequest
 from code.validation_decorators import validate_chat_model_decorator, validate_audio_decorator, rate_limit_decorator, validate_join_key_decorator
 from code.shared import app, config, log, llm_log
 from pydub import AudioSegment
 from code.openai_response import CharacterResponse
-from mutagen.easyid3 import EasyID3
-from mutagen.mp3 import MP3
 import io
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
 from code.message_queue import queue_message_request, RequestType, queue_audio_generation_request
@@ -76,8 +76,8 @@ def save_metadata(filename: str, name: str, join_key: str):
 def merge_audio_files(join_key: str):
     """Merge all audio files from a conversation directory into a single file"""
     try:
-        # Get the directory path for this join_key
-        audio_dir = Path(f'./generated-audio/active/{join_key}')
+        # Get the directory path for this join_key (use aitalkmaster-specific directory)
+        audio_dir = Path(f'./generated-audio/aitalkmaster/active/{join_key}')
         
         if not audio_dir.exists():
             log(f'No audio directory found for join_key: {join_key}')
@@ -99,7 +99,7 @@ def merge_audio_files(join_key: str):
         audio_files.sort()
         
         # Create merged audio file path
-        merged_filename = f'./generated-audio/active/{join_key}/merged_conversation_{join_key}.mp3'
+        merged_filename = f'./generated-audio/aitalkmaster/active/{join_key}/merged_conversation_{join_key}.mp3'
         
         # Load and concatenate all audio files
         combined_audio = AudioSegment.empty()
@@ -145,7 +145,7 @@ def move_audio_files_to_inactive(join_key: str):
         inactive_dir.mkdir(parents=True, exist_ok=True)
         
         # Source directory (active conversation)
-        active_dir = Path(f'./generated-audio/active/{join_key}')
+        active_dir = Path(f'./generated-audio/aitalkmaster/active/{join_key}')
         
         if active_dir.exists():
             # Move all files from active to inactive directory
@@ -200,15 +200,15 @@ def get_response_openai(request: AitPostMessageRequest, ait_instance: Aitalkmast
     return response_msg # type: ignore
 
 def build_filename(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance):
-    # Create subdirectory for the join_key in active folder
-    join_key_dir = Path(f'./generated-audio/active/{request.join_key}')
+    # Create subdirectory for the join_key in aitalkmaster folder
+    join_key_dir = Path(f'./generated-audio/aitalkmaster/active/{request.join_key}')
     join_key_dir.mkdir(parents=True, exist_ok=True)
     
     sequence_str = ait_instance.generate_sequence_str()
     
     filename = f'{sequence_str}_{request.charactername}_{request.message_id}_{request.audio_voice}.mp3'
 
-    full_name = f'./generated-audio/active/{request.join_key}/{filename}'
+    full_name = f'./generated-audio/aitalkmaster/active/{request.join_key}/{filename}'
     return full_name, filename
 
 
@@ -219,7 +219,7 @@ def get_or_create_ait_instance(join_key: str) -> AitalkmasterInstance:
         reset_aitalkmaster(join_key)
         ait_instance = AitalkmasterInstance(join_key=join_key)
         if config.liquidsoap_client is not None:
-            start_liquidsoap(join_key)
+            start_aitalkmaster_stream(join_key)
         active_aitalkmaster_instances[join_key] = ait_instance
     return ait_instance
 
@@ -259,7 +259,7 @@ def process_post_message(request_model: AitPostMessageRequest, ip_address: str):
         if config.audio_client is not None:
             save_audio(full_name, response_msg, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", ip_address)
             save_metadata(full_name, request_model.charactername, join_key)
-            queue_audio(join_key, filename)
+            queue_aitalkmaster_audio(join_key, filename)
             ait_instance.set_audio_created_at(request_model.message_id, time.time())
         
         log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} ait/postMessage (background): message: {request_model.message} response: {response_msg}')
@@ -283,20 +283,20 @@ def process_generate_audio(request_model: AitGenerateAudioRequest, ip_address: s
         ait_instance = get_or_create_ait_instance(join_key)  # This starts the audio stream if it is not already running
 
         # Create directory for the join_key if it doesn't exist
-        join_key_dir = Path(f'./generated-audio/active/{request_model.join_key}')
+        join_key_dir = Path(f'./generated-audio/aitalkmaster/active/{request_model.join_key}')
         join_key_dir.mkdir(parents=True, exist_ok=True)
         
         sequence_str = ait_instance.generate_sequence_str()
         
         # Generate filename with sequence number
         filename = f'{sequence_str}_{request_model.username}_generateAudio_{request_model.audio_voice}.mp3'
-        full_name = f'./generated-audio/active/{request_model.join_key}/{filename}'
+        full_name = f'./generated-audio/aitalkmaster/active/{request_model.join_key}/{filename}'
         
         save_audio(full_name, request_model.message, request_model.audio_voice or "", request_model.audio_model or "", request_model.audio_instructions or "", ip_address)
 
         save_metadata(full_name, request_model.username, join_key)
 
-        queue_audio(join_key, filename)
+        queue_aitalkmaster_audio(join_key, filename)
         
         log(f'{datetime.now().strftime("%Y-%m-%d %H:%M")} generateAudio (background): message: {request_model.message} -> {filename}')
         
@@ -437,8 +437,8 @@ def resetJoinkey(request_model: AitResetJoinkeyRequest, fastapi_request: Request
         else:
             log(f'AI Talkmaster: resetRequest for key but key not found: {join_key}')
 
-        if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
-            stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+        if config.icecast_client is not None and config.icecast_client.aitalkmaster_stream_endpoint_prefix != "":
+            stream_url = config.icecast_client.aitalkmaster_stream_endpoint_prefix + join_key
             return JSONResponse(
                 status_code=200,
                 content={
@@ -467,8 +467,8 @@ def startStream(request_model: AitStartConversationRequest, fastapi_request: Req
         join_key = request_model.join_key
 
         if join_key in active_aitalkmaster_instances.keys():
-            if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
-                stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+            if config.icecast_client is not None and config.icecast_client.aitalkmaster_stream_endpoint_prefix != "":
+                stream_url = config.icecast_client.aitalkmaster_stream_endpoint_prefix + join_key
                 return JSONResponse(
                     status_code=200,
                     content={
@@ -485,8 +485,8 @@ def startStream(request_model: AitStartConversationRequest, fastapi_request: Req
                 )
         else:
             _ = get_or_create_ait_instance(join_key)
-            if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
-                stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+            if config.icecast_client is not None and config.icecast_client.aitalkmaster_stream_endpoint_prefix != "":
+                stream_url = config.icecast_client.aitalkmaster_stream_endpoint_prefix + join_key
                 return JSONResponse(
                     status_code=200,
                     content={
@@ -537,8 +537,8 @@ def generateAudio(request_model: AitGenerateAudioRequest, fastapi_request: Reque
         queue_audio_generation_request(request_model, ip_address, process_generate_audio)
         
         # Return 200 to indicate the request has been queued
-        if config.icecast_client is not None and config.icecast_client.stream_endpoint_prefix != "":
-            stream_url = config.icecast_client.stream_endpoint_prefix + join_key
+        if config.icecast_client is not None and config.icecast_client.aitalkmaster_stream_endpoint_prefix != "":
+            stream_url = config.icecast_client.aitalkmaster_stream_endpoint_prefix + join_key
             return JSONResponse(
                 status_code=200,
                 content={

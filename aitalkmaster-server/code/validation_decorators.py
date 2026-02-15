@@ -6,10 +6,10 @@ from code.rate_limiter import rate_limit_exceeded, get_ip_address_for_rate_limit
 
 def check_chat_model(model: str) -> tuple[bool, list]:
     available_models = config.chat_client.allowed_models
-    if model not in available_models:
-        return False, available_models
+    if model in available_models:
+        return True, available_models
         
-    return True, available_models
+    return False, available_models
 
 def check_audio_voice(voice: str) -> tuple[bool, list]:
     allowed_voices = config.audio_client.allowed_voices
@@ -121,4 +121,21 @@ def rate_limit_decorator(func):
                 return func(request_model, fastapi_request, *args, **kwargs)
         else:
             return func(request_model, fastapi_request, *args, **kwargs)
+    return wrapper
+
+def validate_session_key_decorator(func):
+    from functools import wraps
+    
+    @wraps(func)
+    def wrapper(request_model, fastapi_request: Request, *args, **kwargs):
+        session_key = request_model.session_key
+        
+        if " " in session_key:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": f'Invalid session key "{session_key}", it contains spaces',
+                }
+            )
+        return func(request_model, fastapi_request, *args, **kwargs)
     return wrapper

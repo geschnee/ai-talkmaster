@@ -4,14 +4,11 @@
 // When it's name is mentioned by a user or character, it sends a request to the AI Talkmaster and waits for the generated response, which is then said by the character.
 // More details at https://github.com/geschnee/ai-talkmaster
 
-integer command_channel = 8;
-
 integer com_channel = 0;
 integer listener_public_channel;
 string prompt;
 key user=NULL_KEY;
 string username ="";
-float reserveTime = 180.0;
 float stopwatch;
 
 string ait_endpoint = "https://hg.hypergrid.net:6000";
@@ -21,6 +18,8 @@ float conversation_time=0;
 integer pollingForResponse=0;
 float polling_start_time = 0.0;
 float polling_timeout = 300.0; // Stop polling after 5 minutes
+float activation_start_time = 0.0;
+float activation_duration = 300.0; // 5 minutes in seconds
 
 integer max_response_length = 16384;
 
@@ -279,39 +278,6 @@ validateAllParameters()
     llSetText("currently validating parameters", <1.0, 1.0, 0.5>, 1.0);
 }
 
-// Function to truncate command for dialog (max 24 characters)
-string truncateDialogCommand(string commandPrefix, string name)
-{
-    string fullCommand = commandPrefix + name;
-    if (llStringLength(fullCommand) <= 23) {
-        return fullCommand;
-    }
-    return llGetSubString(fullCommand, 0, 22);
-}
-
-
-printInfo(){
-    llOwnerSay("on channel " + (string) command_channel + " to activate type the following: Activate " + charactername);
-    llOwnerSay("on channel " + (string) command_channel + " to activate only this character, type the following: spotlight " + charactername);
-    llOwnerSay("on channel " + (string) command_channel + " to activate all characters, type the following: ActivateAllCharacters");
-}
-
-// Function to show dialog interface
-showDialog(key user)
-{
-    string status_text="Inactive";
-    if (isActive==1){
-        status_text = "Active";
-    }
-    string activateCmd = truncateDialogCommand("Activate ", charactername);
-    string deactivateCmd = truncateDialogCommand("Deactivate ", charactername);
-    string spotlightCmd = truncateDialogCommand("Spotlight ", charactername);
-    llDialog(user, 
-        "AIT Character: " + charactername + "\nJoin Key: " + join_key + "\nStatus: " + status_text + "\n\nWhat would you like to do?",
-        [activateCmd, deactivateCmd, spotlightCmd, "Close"], 
-        command_channel);
-}
-
 default
 {
     state_entry()
@@ -348,10 +314,21 @@ default
     {
         key toucher = llDetectedKey(0);
         
-        if (fullyValidated) {
-            showDialog(toucher);
-        } else {
+        if (!fullyValidated) {
             llInstantMessage(toucher, "Configuration not validated. Please check that 'llm-parameters', 'llm-system' and 'join_key' notecards exist and contain valid data. Reset the script for more details.");
+            return;
+        }
+        
+        // Activate for 5 minutes on click
+        if (isActive == 0) {
+            listener_public_channel = llListen(0, "","","");
+            activation_start_time = llGetUnixTime();
+            llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
+            llOwnerSay(charactername + " has been activated for 5 minutes");
+            isActive = 1;
+            
+            llSetTimerEvent(1.0);
+            
         }
     }
 
@@ -502,78 +479,6 @@ default
             transmitMessage(username, message);
         }
 
-        
-
-        if (channel == command_channel) {
-            if (id != llGetOwner()) {
-                // uncomment here to allow anyone to trigger config commands
-                llSay(0, "you are not allowed ...");
-                llInstantMessage(id, "You are not allowed to use config commands.");
-                return;
-            }
-
-            if (fullyValidated==0){
-                llInstantMessage(id, "Parameters are not fully validated");
-                return;
-            }
-
-            string ActivateAllCharactersCommand = "ActivateAllCharacters";
-            if (message == ActivateAllCharactersCommand){
-                llOwnerSay(charactername + " has been activated using ActivateAllCharacters command");
-                listener_public_channel = llListen(0, "","","");
-                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
-                isActive = 1;
-            }
-            string DeactivateAllCharactersCommand = "DeactivateAllCharacters";
-            if (message == DeactivateAllCharactersCommand){
-                llOwnerSay(charactername + " has been deactivated using DeactivateAllCharacters command");
-                llListenRemove(listener_public_channel);
-                llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
-                isActive = 0;
-            }
-            string activateAgentCommand = "Activate " + charactername;
-            string activateAgentCommandShort = truncateDialogCommand("Activate ", charactername);
-            
-            if (message == activateAgentCommand || message == activateAgentCommandShort){
-                listener_public_channel = llListen(0, "","","");
-                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
-                llOwnerSay(charactername + " has been activated");
-                isActive = 1;
-            }
-            string deactivateAgentCommand = "Deactivate " + charactername;
-            string deactivateAgentCommandShort = truncateDialogCommand("Deactivate ", charactername);
-            if (message == deactivateAgentCommand || message == deactivateAgentCommandShort){
-                llOwnerSay(charactername + " has been deactivated");
-                llListenRemove(listener_public_channel);
-                llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
-                isActive = 0;
-            }
-            string spotlightActivateCommand = "Spotlight " + charactername;
-            string spotlightActivateCommandShort = truncateDialogCommand("Spotlight ", charactername);
-            if (message == spotlightActivateCommand || message == spotlightActivateCommandShort){
-                llOwnerSay(charactername + " has been activated by spotlight command");
-                listener_public_channel = llListen(0, "","","");
-                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
-                isActive = 1;
-            } else {
-                list commandParts = llParseString2List(message, [" "], []);
-                string commandName = llList2String(commandParts, 0);
-
-                if (commandName == "Spotlight") {
-                    llOwnerSay(charactername + " has been deactivated by spotlight command");
-                    llListenRemove(listener_public_channel);
-                    llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
-                    isActive = 0;
-                }
-            }
-
-            string directActivateCommand = "Direct " + charactername;
-            if (llSubStringIndex(message, directActivateCommand) == 0) {
-                string instruction = llGetSubString(message, llStringLength(directActivateCommand), -1);
-                llOwnerSay(name + " has sent a director command to the server: "+ instruction);
-                transmitMessage("Director", instruction);
-            }
-        }
     }
 
     http_response(key request_id, integer status, list metadata, string body)
@@ -601,10 +506,8 @@ default
                 if (modelsValidated && audioIsValidated) {
                     fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
-                    llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
-                    llListen(command_channel, "","","");
+                    llSetText("currently inactive, click me to activate", <1.0, 1.0, 0.5>, 1.0);
                     ait_startConversation();
-                    printInfo();
                 }
         
             } else {
@@ -665,10 +568,8 @@ default
                 if (modelsValidated && audioIsValidated) {
                     fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
-                    llSetText("currently inactive, click me for details", <1.0, 1.0, 0.5>, 1.0);
-                    llListen(command_channel, "","","");
+                    llSetText("currently inactive, click me to activate", <1.0, 1.0, 0.5>, 1.0);
                     ait_startConversation();
-                    printInfo();
                 }
                 
             } else {
@@ -746,20 +647,46 @@ default
 
     timer()
     {
+        float current_time = llGetUnixTime();
+        
+        // Check if activation timeout has been reached
+        if (isActive == 1 && activation_start_time > 0.0) {
+            if (current_time - activation_start_time > activation_duration) {
+                llListenRemove(listener_public_channel);
+                llSetText("currently inactive, click me to activate", <1.0, 1.0, 0.5>, 1.0);
+                llOwnerSay(charactername + " has been automatically deactivated after 5 minutes");
+                isActive = 0;
+                activation_start_time = 0.0;
+                // Stop timer if not polling
+                if (pollingForResponse == 0) {
+                    llSetTimerEvent(0.0);
+                }
+                return;
+            }
+        }
+        
         if (pollingForResponse == 1) {
             // Check if polling has timed out
-            float current_time = llGetUnixTime();
             if (current_time - polling_start_time > polling_timeout) {
                 llOwnerSay("Polling timeout reached (" + (string)polling_timeout + " seconds). Stopping polling for message: " + pollingMessageId);
                 pollingForResponse = 0;
-                // Resume listening to public channel
-                listener_public_channel = llListen(0, "", "", "");
-                
-                // Show listening indicator
-                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
+                // Resume listening to public channel if still active
+                if (isActive == 1) {
+                    listener_public_channel = llListen(0, "", "", "");
+                    // Show listening indicator
+                    llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
+                }
+                // Stop timer if not active
+                if (isActive == 0) {
+                    llSetText("currently inactive, click me to activate", <1.0, 1.0, 0.5>, 1.0);
+                    llSetTimerEvent(0.0);
+                }
                 return;
             }
             ait_getMessageResponse(pollingMessageId);
+        } else if (isActive == 0 && pollingForResponse == 0) {
+            // Stop timer if not active and not polling
+            llSetTimerEvent(0.0);
         }
     }
 
