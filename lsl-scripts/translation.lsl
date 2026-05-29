@@ -69,6 +69,15 @@ string unescapeJsonString(string jsonStr) {
     return jsonStr;
 }
 
+// Split "name:value" on the first ':' only (values may contain additional colons).
+list parseKeyValueLine(string line) {
+    integer colonPos = llSubStringIndex(line, ":");
+    if (colonPos <= 0) {
+        return [];
+    }
+    return [llGetSubString(line, 0, colonPos - 1), llGetSubString(line, colonPos + 1, -1)];
+}
+
 // Function to print response text, splitting into chunks if necessary
 printResponse(string response) {
     // Unescape JSON escape sequences to get proper quotation marks
@@ -314,7 +323,7 @@ default
 
                 string line = data;
 
-                list splits = llParseString2List(line, [":"],[]);
+                list splits = parseKeyValueLine(line);
                 
                 if ( llGetListLength(splits) == 2 ) 
                 {

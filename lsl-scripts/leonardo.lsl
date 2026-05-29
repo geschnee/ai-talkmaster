@@ -17,9 +17,9 @@ string ait_endpoint = "https://hg.hypergrid.net:6000";
 float conversation_time=0;
 integer pollingForResponse=0;
 float polling_start_time = 0.0;
-float polling_timeout = 300.0; // Stop polling after 5 minutes
+float polling_timeout = 600.0; // Stop polling after 10 minutes
 float activation_start_time = 0.0;
-float activation_duration = 300.0; // 5 minutes in seconds
+float activation_duration = 600.0; // 10 minutes in seconds
 
 integer max_response_length = 16384;
 
@@ -41,6 +41,8 @@ list systemNotecardLines = [];
 
 
 string charactername="";
+string nicknames = "";
+list nicknameList = [];
 string model="";
 string systemInstructions;
 string audio_instructions;
@@ -85,6 +87,15 @@ string unescapeJsonString(string jsonStr) {
     jsonStr = llReplaceSubString(jsonStr, "\\r", "\r", 0);
     jsonStr = llReplaceSubString(jsonStr, "\\\\", "\\", 0);
     return jsonStr;
+}
+
+// Split "name:value" on the first ':' only (values may contain additional colons).
+list parseKeyValueLine(string line) {
+    integer colonPos = llSubStringIndex(line, ":");
+    if (colonPos <= 0) {
+        return [];
+    }
+    return [llGetSubString(line, 0, colonPos - 1), llGetSubString(line, colonPos + 1, -1)];
 }
 
 // Function to print response text, splitting into chunks if necessary
@@ -231,7 +242,7 @@ transmitMessage(string username, string message){
     llListenRemove(listener_public_channel);
     
     // Show polling indicator
-    llSetText("waiting for response", <1.0, 1.0, 0.5>, 1.0);
+    llSetText("Waiting for response", <1.0, 1.0, 0.5>, 1.0);
 
     ait_postMessage(pollingMessageId, username, message);
 }
@@ -275,7 +286,41 @@ validateAllParameters()
     
     validateAudioParameters(audio_voice, audio_model);
 
-    llSetText("currently validating parameters", <1.0, 1.0, 0.5>, 1.0);
+    llSetText("Currently validating parameters", <1.0, 1.0, 0.5>, 1.0);
+}
+
+parseNicknames(string nicknamesValue)
+{
+    nicknameList = [];
+    if (nicknamesValue == "") {
+        return;
+    }
+
+    list parsedNames = llParseString2List(nicknamesValue, [","], []);
+    integer i;
+    for (i = 0; i < llGetListLength(parsedNames); ++i) {
+        string cleanedNickname = llStringTrim(llList2String(parsedNames, i), STRING_TRIM);
+        if (cleanedNickname != "") {
+            nicknameList += [llToLower(cleanedNickname)];
+        }
+    }
+}
+
+integer isCharacterMentioned(string message)
+{
+    string lowerMessage = llToLower(message);
+    if (llSubStringIndex(lowerMessage, llToLower(charactername)) != -1) {
+        return TRUE;
+    }
+
+    integer i;
+    for (i = 0; i < llGetListLength(nicknameList); ++i) {
+        if (llSubStringIndex(lowerMessage, llList2String(nicknameList, i)) != -1) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
 }
 
 default
@@ -323,8 +368,8 @@ default
         if (isActive == 0) {
             listener_public_channel = llListen(0, "","","");
             activation_start_time = llGetUnixTime();
-            llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
-            llOwnerSay(charactername + " has been activated for 5 minutes");
+            llSetText("Listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
+            llOwnerSay(charactername + " has been activated for 10 minutes");
             isActive = 1;
             
             llSetTimerEvent(1.0);
@@ -341,7 +386,7 @@ default
 
                 string line = data;
 
-                list splits = llParseString2List(line, [":"],[]);
+                list splits = parseKeyValueLine(line);
                 
                 if ( llGetListLength(splits) == 2 ) 
                 {
@@ -351,6 +396,11 @@ default
                     if (paramName == "charactername") 
                     {
                         charactername = value;
+                    }
+                    if (paramName == "nicknames")
+                    {
+                        nicknames = value;
+                        parseNicknames(nicknames);
                     }
                     if (paramName == "model") 
                     {
@@ -393,6 +443,7 @@ default
                 // Now you have the entire notecard as a single string
                 llOwnerSay("Parameter notecard content loaded:");
                 llOwnerSay("charactername: " + charactername);
+                llOwnerSay("nicknames: " + nicknames);
                 llOwnerSay("model: " + model);
                 llOwnerSay("audio_instructions: " + audio_instructions);
                 llOwnerSay("audio_voice: " + audio_voice);
@@ -465,9 +516,9 @@ default
             if (pollingForResponse == 1) {
                 return;
             }
-            if (llSubStringIndex(llToLower(message), llToLower(charactername)) == -1)
+            if (!isCharacterMentioned(message))
             {
-                // charactername was not in the message
+                // charactername and nicknames were not in the message
                 return;
             }
 
@@ -506,7 +557,7 @@ default
                 if (modelsValidated && audioIsValidated) {
                     fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
-                    llSetText("currently inactive, click me to activate", <1.0, 1.0, 0.5>, 1.0);
+                    llSetText("Click me to activate", <1.0, 1.0, 0.5>, 1.0);
                     ait_startConversation();
                 }
         
@@ -568,7 +619,7 @@ default
                 if (modelsValidated && audioIsValidated) {
                     fullyValidated = 1;
                     llOwnerSay("✓ All parameters validated successfully!");
-                    llSetText("currently inactive, click me to activate", <1.0, 1.0, 0.5>, 1.0);
+                    llSetText("Click me to activate", <1.0, 1.0, 0.5>, 1.0);
                     ait_startConversation();
                 }
                 
@@ -602,7 +653,7 @@ default
                 listener_public_channel = llListen(0, "", "", "");
                 
                 // Show listening indicator
-                llSetText("listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
+                llSetText("Listening on channel 0", <1.0, 1.0, 0.5>, 1.0);
 
                 string response = llJsonGetValue(body, ["response"]);
                 
@@ -653,8 +704,8 @@ default
         if (isActive == 1 && activation_start_time > 0.0) {
             if (current_time - activation_start_time > activation_duration) {
                 llListenRemove(listener_public_channel);
-                llSetText("currently inactive, click me to activate", <1.0, 1.0, 0.5>, 1.0);
-                llOwnerSay(charactername + " has been automatically deactivated after 5 minutes");
+                llSetText("Click me to activate", <1.0, 1.0, 0.5>, 1.0);
+                llOwnerSay(charactername + " has been automatically deactivated after 10 minutes");
                 isActive = 0;
                 activation_start_time = 0.0;
                 // Stop timer if not polling

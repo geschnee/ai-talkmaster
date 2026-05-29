@@ -58,6 +58,15 @@ integer max_response_length = 16384;
 string audioGenerationMessageId;
 key generateAudioId;
 
+// Split "name:value" on the first ':' only (values may contain additional colons).
+list parseKeyValueLine(string line) {
+    integer colonPos = llSubStringIndex(line, ":");
+    if (colonPos <= 0) {
+        return [];
+    }
+    return [llGetSubString(line, 0, colonPos - 1), llGetSubString(line, colonPos + 1, -1)];
+}
+
 add_stringlist_option(string optionname, string value) {
     optionsList += [optionname, llList2Json(JSON_ARRAY, [value])];
 }
@@ -255,7 +264,7 @@ state inactive
             if (data != EOF)
             {
                 string line = data;
-                list splits = llParseString2List(line, [":"],[]);
+                list splits = parseKeyValueLine(line);
                 
                 if ( llGetListLength(splits) == 2 ) 
                 {
