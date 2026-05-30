@@ -20,6 +20,7 @@ from code.openai_response import CharacterResponse
 import io
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
 from code.message_queue import queue_message_request, RequestType, queue_audio_generation_request
+from ollama import ResponseError
 
 active_aitalkmaster_instances = {}
 finished_aitalkmaster_instances = []
@@ -175,29 +176,37 @@ def get_response_ollama(request: AitPostMessageRequest, ait_instance: Aitalkmast
     for d in ait_instance.getDialog():
         full_dialog.append(d)
 
-    response = config.get_or_create_ollama_chat_client().chat(model=request.model, messages = full_dialog, options=request.options)
-    
-    response_msg = remove_name(response["message"]["content"], request.charactername)
-
-    increment_resource_usage(ip_address, response["eval_count"])
-    
-    return response_msg
+    try:
+        response = config.get_or_create_ollama_chat_client().chat(model=request.model, messages = full_dialog, think=request.think, options=request.options)
+        response_msg = remove_name(response["message"]["content"], request.charactername)
+        increment_resource_usage(ip_address, response["eval_count"])
+        return response_msg
+    except ResponseError as e:
+        error_msg = f"Ollama ResponseError: {str(e)}"
+        log(error_msg)
+        llm_log(error_msg)
+        return error_msg
 
 def get_response_openai(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance, ip_address: str) -> str:
+    try:
+        response = config.get_or_create_openai_chat_client().responses.parse(
+            model=request.model,
+            input=ait_instance.getDialog(),
+            instructions=request.system_instructions,
+            text_format=CharacterResponse,
+            store=False
+        )
 
-    response = config.get_or_create_openai_chat_client().responses.parse(
-        model=request.model,
-        input=ait_instance.getDialog(),
-        instructions=request.system_instructions,
-        text_format=CharacterResponse,
-        store=False
-    )
+        increment_resource_usage(ip_address, response.usage.total_tokens)
 
-    increment_resource_usage(ip_address, response.usage.total_tokens)
+        response_msg = remove_name(response.output_parsed.text_response, request.charactername)
 
-    response_msg = remove_name(response.output_parsed.text_response, request.charactername)
-
-    return response_msg # type: ignore
+        return response_msg # type: ignore
+    except Exception as e:
+        error_msg = f"OpenAI ResponseError: {str(e)}"
+        log(error_msg)
+        llm_log(error_msg)
+        return error_msg
 
 def build_filename(request: AitPostMessageRequest, ait_instance: AitalkmasterInstance):
     # Create subdirectory for the join_key in aitalkmaster folder

@@ -27,6 +27,7 @@ volumes_openai/*
 
 notes.md
 
+.idea/
 .vscode/
 ai-talkmaster.code-workspace
 

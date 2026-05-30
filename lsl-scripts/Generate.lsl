@@ -53,6 +53,7 @@ list systemNotecardLines = [];
 
 string charactername;
 string model;
+string think = JSON_FALSE;
 string system;
 
 list optionParameters_stringlist = ["stop"];
@@ -215,7 +216,7 @@ generate_postMessage(string input_message) {
     
     string optionstring = llList2Json(JSON_OBJECT, optionsList);
 
-    string jsonBody = llList2Json(JSON_OBJECT, ["message", input_message, "model", model,"system_instructions", system, "options", optionstring, "message_id", (string)message_id]);
+    string jsonBody = llList2Json(JSON_OBJECT, ["message", input_message, "model", model, "system_instructions", system, "think", think, "options", optionstring, "message_id", (string)message_id]);
 
     postMessageId = llHTTPRequest(ait_endpoint + "/generate/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
@@ -329,6 +330,15 @@ default
                     if (paramName == "model") 
                     {
                         model = value;
+                    }
+                    if (paramName == "think")
+                    {
+                        string lowerValue = llToLower(value);
+                        if (lowerValue == "true" || lowerValue == "1") {
+                            think = JSON_TRUE;
+                        } else {
+                            think = JSON_FALSE;
+                        }
                     }
                     
                     // Check if this parameter is in any of our option lists

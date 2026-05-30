@@ -3,8 +3,12 @@ model:llama3.2
 audio_model:kokoro
 audio_instructions:You are talking in a wise and calm voice.
 audio_voice:af_bella
+think:False
 
 // the parameters audio_model, audio_instructions and audio_voice are not required for Generate.lsl and Conversation.lsl
+// the think parameter can be used with Ollama models only, and it defaults to False.
+// When enabled, Ollama may perform extra internal reasoning, which can increase response time
+// and may cause timeouts for slower or larger models. Use with supported models only.
 
 
 // The parameters below apply for calls to AI Talkmaster instances that use Ollama models.

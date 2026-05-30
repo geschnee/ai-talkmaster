@@ -44,6 +44,7 @@ string charactername="";
 string nicknames = "";
 list nicknameList = [];
 string model="";
+string think = JSON_FALSE;
 string systemInstructions;
 string audio_instructions;
 string audio_voice="";
@@ -214,7 +215,7 @@ add_option(string optionname, string value) {
 
 ait_postMessage(string message_id, string username, string message) {
     string optionstring = llList2Json(JSON_OBJECT, optionsList);
-    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "model", model,"system_instructions", systemInstructions, "charactername", charactername, "message_id", message_id, "options", optionstring, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
+    string jsonBody = llList2Json(JSON_OBJECT, ["join_key", join_key, "username", username, "message", message, "model", model, "system_instructions", systemInstructions, "charactername", charactername, "think", think, "message_id", message_id, "options", optionstring, "audio_instructions", audio_instructions, "audio_voice", audio_voice, "audio_model", audio_model]);
 
     postMessageId = llHTTPRequest(ait_endpoint + "/ait/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
@@ -417,6 +418,15 @@ default
                     if (paramName == "audio_instructions") 
                     {
                         audio_instructions = value;
+                    }
+                    if (paramName == "think")
+                    {
+                        string lowerValue = llToLower(value);
+                        if (lowerValue == "true" || lowerValue == "1") {
+                            think = JSON_TRUE;
+                        } else {
+                            think = JSON_FALSE;
+                        }
                     }
                     
                     // Check if this parameter is in any of our option lists

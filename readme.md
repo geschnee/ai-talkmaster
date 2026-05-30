@@ -68,6 +68,8 @@ This notecard contains all other parameters for the character and parameterizati
 
 An [example notecard](lsl-scripts/llm-parameters.notecard) is located in the lsl-scripts directory. 
 
+The new `think` parameter is supported for Ollama models only. It is a boolean flag that enables Ollama's internal thinking mode, which can cause longer inference times and may lead to timeouts on slower or larger models. The default value is `False`.
+
 The following parameters are only used with the AI Talkmaster endpoints when generating an audio stream:
 * audio_model
 * audio_instructions

@@ -9,6 +9,7 @@ from code.config import ChatClientMode
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
 from fastapi import Request
 from code.message_queue import queue_message_request, RequestType
+from ollama import ResponseError
 
 generate_response_queue = []
 MAX_CHATS_NO_HISTORY = 1000
@@ -38,18 +39,26 @@ def generateGetMessageResponse(message_id: str):
         )
 
 def get_response_ollama_generate(request: GenerateRequest, ip_address: str) -> str:
-    response = config.get_or_create_ollama_chat_client().generate(model=request.model, prompt=request.message, system=request.system_instructions, options=request.options)
-
-    increment_resource_usage(ip_address, response["eval_count"])
-    
-    return response["response"]
+    try:
+        response = config.get_or_create_ollama_chat_client().generate(model=request.model, prompt=request.message, system=request.system_instructions, think=request.think, options=request.options)
+        increment_resource_usage(ip_address, response["eval_count"])
+        return response["response"]
+    except ResponseError as e:
+        error_msg = f"Ollama ResponseError: {str(e)}"
+        log(error_msg)
+        llm_log(error_msg)
+        return error_msg
     
 def get_response_openai_generate(request: GenerateRequest, ip_address: str) -> str:
-    response = config.get_or_create_openai_chat_client().responses.create(model=request.model, input=request.message, instructions=request.system_instructions)
-    
-    increment_resource_usage(ip_address, response.usage.total_tokens)
-
-    return response.output[0].content[0].text
+    try:
+        response = config.get_or_create_openai_chat_client().responses.create(model=request.model, input=request.message, instructions=request.system_instructions)
+        increment_resource_usage(ip_address, response.usage.total_tokens)
+        return response.output[0].content[0].text
+    except Exception as e:
+        error_msg = f"OpenAI ResponseError: {str(e)}"
+        log(error_msg)
+        llm_log(error_msg)
+        return error_msg
 
 def process_generate_post_message(request_model: GenerateRequest, ip_address: str):
     """Process a generate postMessage request in the background"""

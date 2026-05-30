@@ -14,6 +14,7 @@ from code.config import ChatClientMode
 from code.rate_limiter import get_ip_address_for_rate_limit, increment_resource_usage
 from fastapi import Request
 from code.message_queue import queue_message_request, RequestType
+from ollama import ResponseError
 
 conversation_queue = []
 MAX_ACTIVE_CONVERSATIONS = 1000
@@ -189,7 +190,7 @@ def conversationGetMessage(conversation_key: str, message_id: str):
             content=f"Internal server error getMessage: {e}"
         )
 
-def get_response_ollama_conversation(conversation: Conversation, ip_address: str) -> str:
+def get_response_ollama_conversation(conversation: Conversation, think: bool, ip_address: str) -> str:
     full_dialog = []
     full_dialog.append({
         "role": "system",
@@ -198,24 +199,34 @@ def get_response_ollama_conversation(conversation: Conversation, ip_address: str
     for d in conversation.getDialog():
         full_dialog.append(d)
 
-    response = config.get_or_create_ollama_chat_client().chat(model=conversation.model, messages = full_dialog, options=conversation.options)
-
-    increment_resource_usage(ip_address, response["eval_count"])
-
-    return response["message"]["content"]
+    try:
+        response = config.get_or_create_ollama_chat_client().chat(model=conversation.model, messages = full_dialog, think=think, options=conversation.options)
+        increment_resource_usage(ip_address, response["eval_count"])
+        return response["message"]["content"]
+    except ResponseError as e:
+        error_msg = f"Ollama ResponseError: {str(e)}"
+        log(error_msg)
+        llm_log(error_msg)
+        return error_msg
 
 def get_response_openai_conversation(conversation: Conversation, ip_address: str) -> str:
-    response = config.get_or_create_openai_chat_client().responses.parse(
-        model=conversation.model,
-        input=conversation.getDialog(),
-        instructions=conversation.system,
-        text_format=CharacterResponse,
-        store=False
-    )
+    try:
+        response = config.get_or_create_openai_chat_client().responses.parse(
+            model=conversation.model,
+            input=conversation.getDialog(),
+            instructions=conversation.system,
+            text_format=CharacterResponse,
+            store=False
+        )
 
-    increment_resource_usage(ip_address, response.usage.total_tokens)
+        increment_resource_usage(ip_address, response.usage.total_tokens)
 
-    return response.output_parsed.text_response # type: ignore
+        return response.output_parsed.text_response # type: ignore
+    except Exception as e:
+        error_msg = f"OpenAI ResponseError: {str(e)}"
+        log(error_msg)
+        llm_log(error_msg)
+        return error_msg
 
 def process_conversation_post_message(request_model: ConversationPostMessageRequest, ip_address: str):
     """Process a conversation postMessage request in the background"""
@@ -230,7 +241,7 @@ def process_conversation_post_message(request_model: ConversationPostMessageRequ
         if config.chat_client.mode == ChatClientMode.OPENAI:
             response_msg = get_response_openai_conversation(conversation, ip_address)
         elif config.chat_client.mode == ChatClientMode.OLLAMA:
-            response_msg = get_response_ollama_conversation(conversation, ip_address)
+            response_msg = get_response_ollama_conversation(conversation, request_model.think, ip_address)
         else:
             log(f'Error: unknown chat client mode: {config.chat_client.mode}')
             return

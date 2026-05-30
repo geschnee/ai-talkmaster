@@ -8,6 +8,7 @@ class GenerateRequest(BaseModel):
     system_instructions: Optional[str] = ""
     model: Optional[str] = ""
     options: Optional[dict] = {}
+    think: Optional[bool] = False
 
 # Conversation requests (single-character conversations with history, no audio streaming)
 class ConversationStartRequest(BaseModel):
@@ -19,6 +20,7 @@ class ConversationPostMessageRequest(BaseModel):
     conversation_key: str
     message: str
     message_id: str
+    think: Optional[bool] = False
 
 # AI Talkmaster requests (multi-character conversations with history and audio streaming)
 class AitPostMessageRequest(BaseModel):
@@ -26,6 +28,7 @@ class AitPostMessageRequest(BaseModel):
     username: str # name of the agent that said the message
     message: str
     model: Optional[str] = ""
+    think: Optional[bool] = False
     system_instructions: Optional[str] = ""
     charactername: str
     message_id: str

@@ -63,6 +63,7 @@ list systemNotecardLines = [];
 
 string charactername;
 string model;
+string think = JSON_FALSE;
 string system;
 
 list optionParameters_stringlist = ["stop"];
@@ -273,7 +274,7 @@ conversation_postMessage(string conversation_key, string message) {
 
     conversation_message_id = llGenerateKey();
 
-    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message", message, "message_id", (string) conversation_message_id]);
+    string jsonBody = llList2Json(JSON_OBJECT, ["conversation_key", conversation_key, "message", message, "think", think, "message_id", (string) conversation_message_id]);
     
     postMessageId = llHTTPRequest(ait_endpoint + "/conversation/postMessage", [HTTP_METHOD, "POST", HTTP_BODY_MAXLENGTH, max_response_length, HTTP_MIMETYPE, "application/json"], jsonBody);
 }
@@ -346,6 +347,15 @@ default
                     if (paramName == "model") 
                     {
                         model = value;
+                    }
+                    if (paramName == "think")
+                    {
+                        string lowerValue = llToLower(value);
+                        if (lowerValue == "true" || lowerValue == "1") {
+                            think = JSON_TRUE;
+                        } else {
+                            think = JSON_FALSE;
+                        }
                     }
                     
                     // Check if this parameter is in any of our option lists
